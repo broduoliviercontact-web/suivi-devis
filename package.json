@@ -1,0 +1,7 @@
+{
+  "name": "suivi-devis",
+  "private": true,
+  "type": "module",
+  "description": "Suivi des devis par événement : propositions fournisseurs, versions, mémoire des prix.",
+  "engines": { "node": ">=18" }
+}
