@@ -63,6 +63,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .event{display:flex;flex-direction:column}
 .ev-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:10px}
 .tape{font-family:var(--display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;background:var(--tape);color:var(--tape-ink);padding:2px 12px 1px;transform:rotate(-.6deg);clip-path:polygon(0 4%,3% 0,97% 6%,100% 0,99% 96%,96% 100%,2% 94%,0 100%)}
+.ev-name{border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-family:var(--display)}
+.ev-name:disabled{cursor:default}
+.ev-name svg{width:15px;height:15px;opacity:.45}
+.ev-name:hover svg,.ev-name:focus-visible svg{opacity:1}
+.ev-add{margin-left:auto;background:var(--surface)}
+.small-panel{max-width:440px;margin-top:12vh}
 .ev-count{color:var(--muted);font-size:.86rem;font-variant-numeric:tabular-nums}
 .sheet{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .row{display:grid;grid-template-columns:62px minmax(0,1.3fr) minmax(0,1.2fr) repeat(4,58px) 10px repeat(3,58px);align-items:center;border-top:1px solid var(--line);min-height:50px}
@@ -221,6 +227,17 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 <datalist id="objets"></datalist>
 <datalist id="fournisseurs"></datalist>
 
+<div class="veil" id="evVeil" hidden>
+  <form class="panel small-panel" id="evForm" autocomplete="off" role="dialog" aria-modal="true" aria-labelledby="evTitle">
+    <h2 id="evTitle">Renommer l'événement</h2>
+    <p class="hint" id="evHint" style="margin:0;color:var(--muted);font-size:.9rem"></p>
+    <label>Nouveau nom<input id="evName" required placeholder="ex. Ouverture 6-8/11"></label>
+    <p class="hint" style="margin:0;color:var(--muted);font-size:.84rem">Garde la date dans le nom (« 6-8/11 », « 06/01/27 ») pour que les événements restent triés dans l'ordre.</p>
+    <p class="err" id="evErr" hidden></p>
+    <div class="actions"><span class="r"><button type="button" class="ghost" id="evCancel">Annuler</button><button type="submit" class="primary">Renommer</button></span></div>
+  </form>
+</div>
+
 <div class="veil" id="veil" hidden>
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
     <div class="p-head">
@@ -268,6 +285,7 @@ const STEPS=[["aEnvoyer","À envoyer"],["envoye","Envoyé"],["signe","Signé"],[
 const FACT=[["factSB","SB"],["factRecue","Reçue"],["factEnvoyee","Envoyée"]];
 const FILTERS=[["tous","Tous"],["relancer","À relancer"],["payer","À payer"],["factures","Factures en attente"]];
 const CHECK='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PEN='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.8 2.7l2.5 2.5-7.9 7.9-3.1.6.6-3.1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 const CLIP='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5L5.2 9.8a1.6 1.6 0 002.3 2.3l5.6-5.6a3 3 0 00-4.3-4.3L3.2 7.8a4.4 4.4 0 006.2 6.2l4.1-4.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 const UPLOAD_ERR={too_large:"Le fichier dépasse 20 Mo. Envoie une version plus légère.",unsupported_type:"Ce type de fichier n'est pas accepté. Exporte le devis en PDF ou en image.",quota_or_state:"L'espace de stockage est plein. Retire d'anciens fichiers.",rate_limited:"Trop d'envois d'un coup. Réessaie dans quelques secondes.",upstream_auth:"Session expirée. Recharge la page et reconnecte-toi."};
 
@@ -398,7 +416,7 @@ function renderEvents(){
     const all=rows.filter(r=>(r.evenement||"Sans événement").trim()===ev);
     const sig=all.filter(r=>r.signe).length, pay=all.filter(r=>r.paye).length;
     const tot=all.map(r=>retained(r._id)).filter(o=>o&&o.montant!=null).reduce((s,o)=>s+o.montant,0);
-    html+=`<section class="event"><div class="ev-head"><span class="tape">${esc(ev)}</span><span class="ev-count">${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}</span></div><div class="sheet">`;
+    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name" data-ev="${esc(ev)}" title="Renommer l'événement" ${canWrite?"":"disabled"}>${esc(ev)}${canWrite?PEN:""}</button><span class="ev-count">${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev==="Sans événement"?"":ev)}">+ Besoin</button>`:""}</div><div class="sheet">`;
     html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${STEPS.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
@@ -500,29 +518,59 @@ $("list").addEventListener("click",e=>{
     return;
   }
   const o=e.target.closest("[data-open]");
-  if(o)openFiche(o.dataset.open);
+  if(o)return openFiche(o.dataset.open);
+  const en=e.target.closest("[data-ev]");
+  if(en&&canWrite)return openRename(en.dataset.ev);
+  const ad=e.target.closest("[data-addev]");
+  if(ad)openFiche(null,ad.dataset.addev);
+});
+
+/* ---------- rename an event (applies to all its besoins) ---------- */
+let renaming=null;
+const evOf=r=>(r.evenement||"Sans événement").trim();
+function openRename(ev){
+  renaming=ev;
+  const n=rows.filter(r=>evOf(r)===ev).length;
+  $("evHint").textContent=`« ${ev} » · ${n} besoin${n>1?"s":""} seront mis à jour.`;
+  $("evName").value=ev==="Sans événement"?"":ev;$("evErr").hidden=true;
+  $("evVeil").hidden=false;setTimeout(()=>{$("evName").focus();$("evName").select()},30);
+}
+function closeRename(){$("evVeil").hidden=true;renaming=null}
+$("evCancel").onclick=closeRename;
+$("evVeil").addEventListener("click",e=>{if(e.target===$("evVeil"))closeRename()});
+$("evForm").addEventListener("submit",e=>{
+  e.preventDefault();
+  const name=$("evName").value.trim().replace(/\s+/g," ");
+  if(!name){$("evErr").textContent="Indique un nom.";$("evErr").hidden=false;return}
+  const old=renaming;closeRename();
+  if(name===old)return;
+  for(const r of rows.filter(r=>evOf(r)===old)){
+    r.evenement=name;
+    write(r._id,()=>api("devis",r._id,"update",{evenement:name}));
+  }
+  render();
 });
 $("addBtn").onclick=()=>openFiche(null);
 
 /* ---------- fiche (panel) ---------- */
-function openFiche(id){
+function openFiche(id,prefillEvent){
   const d=id?devisById(id):null;
   if(id&&!d)return;
   if(!id&&!canWrite)return;
   fiche={id:id||null};oMode=null;
-  $("fEvent").value=d?.evenement||"";$("fObjet").value=d?.objet||"";
+  $("fEvent").value=d?.evenement||prefillEvent||"";$("fObjet").value=d?.objet||"";
   [$("fEvent"),$("fObjet"),$("saveBtn")].forEach(x=>x.disabled=!canWrite);
   $("saveBtn").textContent=d?"Enregistrer":"Créer le besoin";
   $("delBtn").hidden=!d||!canWrite;$("delBtn").textContent="Supprimer ce besoin";$("delBtn").dataset.armed="";
   $("fErr").hidden=true;
   $("veil").hidden=false;document.body.style.overflow="hidden";
   renderFiche();
-  setTimeout(()=>{if(!d)$("fEvent").focus();else $("closeBtn").focus()},30);
+  setTimeout(()=>{if(!d)$(prefillEvent?"fObjet":"fEvent").focus();else $("closeBtn").focus()},30);
 }
 function closeFiche(){$("veil").hidden=true;document.body.style.overflow="";fiche=null;oMode=null}
 $("closeBtn").onclick=closeFiche;
 $("veil").addEventListener("click",e=>{if(e.target===$("veil"))closeFiche()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("veil").hidden)closeFiche()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("evVeil").hidden)closeRename();else if(!$("veil").hidden)closeFiche()});
 $("fObjet").addEventListener("input",()=>{if(fiche&&!fiche.id)renderMem()});
 
 function renderFiche(){
