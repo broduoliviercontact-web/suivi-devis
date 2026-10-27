@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Suivi des devis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* Layout: one column of events; each event is a block of devis rows that read like a table on desktop and like cards on phone. Gaffer-tape yellow marks event and category labels. */
 :root{
@@ -63,12 +63,25 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .event{display:flex;flex-direction:column}
 .ev-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:10px}
 .tape{font-family:var(--display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;background:var(--tape);color:var(--tape-ink);padding:2px 12px 1px;transform:rotate(-.6deg);clip-path:polygon(0 4%,3% 0,97% 6%,100% 0,99% 96%,96% 100%,2% 94%,0 100%)}
+/* event label colours (same in both themes: they are tape, not page surfaces) */
+:root{--t-yellow:#f2c230;--t-yellow-i:#1b1a14;--t-orange:#f08a3c;--t-orange-i:#1f1209;--t-red:#dc4a3e;--t-red-i:#ffffff;--t-pink:#ec7fae;--t-pink-i:#2a0d1b;--t-purple:#8a68e3;--t-purple-i:#ffffff;--t-blue:#3b82e6;--t-blue-i:#ffffff;--t-green:#3aa865;--t-green-i:#07170d;--t-grey:#a1a9b2;--t-grey-i:#121518;--t-white:#f4f5f7;--t-white-i:#15191e;--t-black:#262b32;--t-black-i:#f2f4f6}
+.t-yellow{background:var(--t-yellow);color:var(--t-yellow-i)}.t-orange{background:var(--t-orange);color:var(--t-orange-i)}.t-red{background:var(--t-red);color:var(--t-red-i)}.t-pink{background:var(--t-pink);color:var(--t-pink-i)}.t-purple{background:var(--t-purple);color:var(--t-purple-i)}.t-blue{background:var(--t-blue);color:var(--t-blue-i)}.t-green{background:var(--t-green);color:var(--t-green-i)}.t-grey{background:var(--t-grey);color:var(--t-grey-i)}.t-white{background:var(--t-white);color:var(--t-white-i)}.t-black{background:var(--t-black);color:var(--t-black-i)}
 .ev-name{border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-family:var(--display)}
 .ev-name:disabled{cursor:default}
 .ev-name svg{width:15px;height:15px;opacity:.45}
 .ev-name:hover svg,.ev-name:focus-visible svg{opacity:1}
 .ev-add{margin-left:auto;background:var(--surface)}
-.small-panel{max-width:440px;margin-top:12vh}
+.small-panel{max-width:480px;margin-top:8vh}
+.ev-preview{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:18px 14px;display:flex;align-items:center;min-height:76px;overflow:hidden}
+.ev-preview .tape{max-width:100%;overflow-wrap:anywhere}
+.opt{display:flex;flex-direction:column;gap:7px}
+.opt>span{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.swatches,.toggles,.seg{display:flex;flex-wrap:wrap;gap:6px}
+.sw{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);padding:0}
+.sw[aria-pressed="true"]{outline:2px solid var(--fg);outline-offset:2px}
+.tg,.seg button{min-width:40px;height:36px;padding:0 11px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:.95rem}
+.tg[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--on);color:var(--on-ink);border-color:var(--on)}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);font-size:.86rem;text-decoration:underline;text-underline-offset:3px}
 .ev-count{color:var(--muted);font-size:.86rem;font-variant-numeric:tabular-nums}
 .sheet{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .row{display:grid;grid-template-columns:62px minmax(0,1.3fr) minmax(0,1.2fr) repeat(4,58px) 10px repeat(3,58px);align-items:center;border-top:1px solid var(--line);min-height:50px}
@@ -229,12 +242,24 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 
 <div class="veil" id="evVeil" hidden>
   <form class="panel small-panel" id="evForm" autocomplete="off" role="dialog" aria-modal="true" aria-labelledby="evTitle">
-    <h2 id="evTitle">Renommer l'événement</h2>
-    <p class="hint" id="evHint" style="margin:0;color:var(--muted);font-size:.9rem"></p>
-    <label>Nouveau nom<input id="evName" required placeholder="ex. Ouverture 6-8/11"></label>
-    <p class="hint" style="margin:0;color:var(--muted);font-size:.84rem">Garde la date dans le nom (« 6-8/11 », « 06/01/27 ») pour que les événements restent triés dans l'ordre.</p>
+    <div class="p-head"><h2 id="evTitle">Modifier l'événement</h2><button type="button" class="x" id="evX" aria-label="Fermer">×</button></div>
+    <div class="ev-preview" aria-hidden="true"><span class="tape" id="evPreview"></span></div>
+    <label>Nom<input id="evName" required placeholder="ex. Ouverture 6-8/11"></label>
+    <p class="hint" style="margin:-8px 0 0;color:var(--muted);font-size:.82rem">Garde la date dans le nom (« 6-8/11 », « 06/01/27 ») pour que les événements restent dans l'ordre.</p>
+    <div class="opt"><span>Couleur</span><div class="swatches" id="evColors"></div></div>
+    <div class="opt"><span>Style</span><div class="toggles" id="evToggles">
+      <button type="button" class="tg" data-t="b" title="Gras" aria-label="Gras"><b>G</b></button>
+      <button type="button" class="tg" data-t="i" title="Italique" aria-label="Italique"><i>I</i></button>
+      <button type="button" class="tg" data-t="s" title="Barré" aria-label="Barré"><s>S</s></button>
+      <button type="button" class="tg" data-t="l" title="Souligné" aria-label="Souligné"><u>U</u></button>
+      <button type="button" class="tg" data-t="u" title="Majuscules" aria-label="Majuscules">AB</button>
+    </div></div>
+    <div class="opt"><span>Taille</span><div class="seg" id="evSizes">
+      <button type="button" data-z="s">Petite</button><button type="button" data-z="m">Normale</button><button type="button" data-z="l">Grande</button><button type="button" data-z="xl">Très grande</button>
+    </div></div>
+    <p class="hint" id="evHint" style="margin:0;color:var(--muted);font-size:.86rem"></p>
     <p class="err" id="evErr" hidden></p>
-    <div class="actions"><span class="r"><button type="button" class="ghost" id="evCancel">Annuler</button><button type="submit" class="primary">Renommer</button></span></div>
+    <div class="actions"><button type="button" class="linkbtn" id="evReset">Style par défaut</button><span class="r"><button type="button" class="ghost" id="evCancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></span></div>
   </form>
 </div>
 
@@ -416,7 +441,7 @@ function renderEvents(){
     const all=rows.filter(r=>(r.evenement||"Sans événement").trim()===ev);
     const sig=all.filter(r=>r.signe).length, pay=all.filter(r=>r.paye).length;
     const tot=all.map(r=>retained(r._id)).filter(o=>o&&o.montant!=null).reduce((s,o)=>s+o.montant,0);
-    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name" data-ev="${esc(ev)}" title="Renommer l'événement" ${canWrite?"":"disabled"}>${esc(ev)}${canWrite?PEN:""}</button><span class="ev-count">${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev==="Sans événement"?"":ev)}">+ Besoin</button>`:""}</div><div class="sheet">`;
+    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(styleOfEvent(ev))}" style="${evStyle(styleOfEvent(ev))}" data-ev="${esc(ev)}" title="Modifier l'événement" ${canWrite?"":"disabled"}>${esc(ev)}${canWrite?PEN:""}</button><span class="ev-count">${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev==="Sans événement"?"":ev)}">+ Besoin</button>`:""}</div><div class="sheet">`;
     html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${STEPS.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
@@ -525,28 +550,55 @@ $("list").addEventListener("click",e=>{
   if(ad)openFiche(null,ad.dataset.addev);
 });
 
-/* ---------- rename an event (applies to all its besoins) ---------- */
-let renaming=null;
+/* ---------- edit an event: name + look (stored on each of its besoins as evStyle) ---------- */
+const COLORS=[["yellow","Jaune"],["orange","Orange"],["red","Rouge"],["pink","Rose"],["purple","Violet"],["blue","Bleu"],["green","Vert"],["grey","Gris"],["white","Blanc"],["black","Noir"]];
+const SIZES={s:"1.05rem",m:"1.35rem",l:"1.75rem",xl:"2.2rem"};
+const DEF_STYLE={c:"yellow",b:true,i:false,s:false,l:false,u:true,z:"m"};
 const evOf=r=>(r.evenement||"Sans événement").trim();
-function openRename(ev){
-  renaming=ev;
-  const n=rows.filter(r=>evOf(r)===ev).length;
-  $("evHint").textContent=`« ${ev} » · ${n} besoin${n>1?"s":""} seront mis à jour.`;
-  $("evName").value=ev==="Sans événement"?"":ev;$("evErr").hidden=true;
-  $("evVeil").hidden=false;setTimeout(()=>{$("evName").focus();$("evName").select()},30);
+function styleOfEvent(ev){const r=rows.find(r=>evOf(r)===ev&&r.evStyle);return {...DEF_STYLE,...(r?r.evStyle:{})}}
+const evClass=st=>"t-"+(COLORS.some(c=>c[0]===st.c)?st.c:"yellow");
+function evStyle(st){
+  const deco=[st.s&&"line-through",st.l&&"underline"].filter(Boolean).join(" ")||"none";
+  return `font-weight:${st.b?700:400};font-style:${st.i?"italic":"normal"};text-decoration:${deco};text-decoration-thickness:${st.s?"2px":"auto"};text-transform:${st.u?"uppercase":"none"};letter-spacing:${st.u?".04em":".01em"};font-size:${SIZES[st.z]||SIZES.m}`;
 }
-function closeRename(){$("evVeil").hidden=true;renaming=null}
-$("evCancel").onclick=closeRename;
+let renaming=null, draft=null;
+$("evColors").innerHTML=COLORS.map(([c,l])=>`<button type="button" class="sw t-${c}" data-c="${c}" title="${l}" aria-label="${l}"></button>`).join("");
+function paintDraft(){
+  const pv=$("evPreview");
+  pv.className="tape "+evClass(draft);pv.setAttribute("style",evStyle(draft));
+  pv.textContent=$("evName").value.trim()||"Nom de l'événement";
+  document.querySelectorAll("#evColors .sw").forEach(b=>b.setAttribute("aria-pressed",b.dataset.c===draft.c));
+  document.querySelectorAll("#evToggles .tg").forEach(b=>b.setAttribute("aria-pressed",!!draft[b.dataset.t]));
+  document.querySelectorAll("#evSizes button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.z===draft.z));
+}
+function openRename(ev){
+  renaming=ev;draft=styleOfEvent(ev);
+  const n=rows.filter(r=>evOf(r)===ev).length;
+  $("evHint").textContent=`${n} besoin${n>1?"s":""} dans cet événement.`;
+  $("evName").value=ev==="Sans événement"?"":ev;$("evErr").hidden=true;
+  paintDraft();
+  $("evVeil").hidden=false;setTimeout(()=>$("evName").focus(),30);
+}
+function closeRename(){$("evVeil").hidden=true;renaming=null;draft=null}
+$("evCancel").onclick=closeRename;$("evX").onclick=closeRename;
 $("evVeil").addEventListener("click",e=>{if(e.target===$("evVeil"))closeRename()});
+$("evName").addEventListener("input",paintDraft);
+$("evColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(b){draft.c=b.dataset.c;paintDraft()}});
+$("evToggles").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b){draft[b.dataset.t]=!draft[b.dataset.t];paintDraft()}});
+$("evSizes").addEventListener("click",e=>{const b=e.target.closest("[data-z]");if(b){draft.z=b.dataset.z;paintDraft()}});
+$("evReset").onclick=()=>{draft={...DEF_STYLE};paintDraft()};
 $("evForm").addEventListener("submit",e=>{
   e.preventDefault();
   const name=$("evName").value.trim().replace(/\s+/g," ");
   if(!name){$("evErr").textContent="Indique un nom.";$("evErr").hidden=false;return}
-  const old=renaming;closeRename();
-  if(name===old)return;
+  const old=renaming, st={...draft};closeRename();
   for(const r of rows.filter(r=>evOf(r)===old)){
-    r.evenement=name;
-    write(r._id,()=>api("devis",r._id,"update",{evenement:name}));
+    const patch={};
+    if(name!==old)patch.evenement=name;
+    if(JSON.stringify({...DEF_STYLE,...(r.evStyle||{})})!==JSON.stringify(st)||!r.evStyle)patch.evStyle=st;
+    if(!Object.keys(patch).length)continue;
+    Object.assign(r,patch);
+    write(r._id,()=>api("devis",r._id,"update",patch));
   }
   render();
 });
@@ -570,7 +622,7 @@ function openFiche(id,prefillEvent){
 function closeFiche(){$("veil").hidden=true;document.body.style.overflow="";fiche=null;oMode=null}
 $("closeBtn").onclick=closeFiche;
 $("veil").addEventListener("click",e=>{if(e.target===$("veil"))closeFiche()});
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("evVeil").hidden)closeRename();else if(!$("veil").hidden)closeFiche()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(e.target&&e.target.closest&&e.target.closest("#evVeil")&&!$("evVeil").hidden){closeRename();return}if(!$("evVeil").hidden)closeRename();else if(!$("veil").hidden)closeFiche()});
 $("fObjet").addEventListener("input",()=>{if(fiche&&!fiche.id)renderMem()});
 
 function renderFiche(){
@@ -623,6 +675,7 @@ function renderMem(){
 $("baseForm").addEventListener("submit",e=>{
   e.preventDefault();if(!db||!canWrite)return;
   const data={evenement:$("fEvent").value.trim(),objet:$("fObjet").value.trim()};
+  {const other=rows.find(r=>r._id!==fiche.id&&evOf(r)===data.evenement&&r.evStyle);if(other)data.evStyle=other.evStyle}
   if(!data.evenement||!data.objet){$("fErr").textContent="Indique l'événement et le besoin.";$("fErr").hidden=false;return}
   $("fErr").hidden=true;
   if(fiche.id){
