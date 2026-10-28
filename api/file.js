@@ -13,6 +13,6 @@ export default route(["GET", "POST"], async (req, res) => {
   if (!safePath(p)) return res.status(400).json({ error: "Fichier invalide" });
   const r = await sb(`/storage/v1/object/sign/${BUCKET}/${p}`, { method: "POST", body: { expiresIn: 600 } });
   const rel = r.signedURL || r.signedUrl;
-  res.setHeader("Location", `${supabaseUrl()}/storage/v1${rel.startsWith("/") ? rel : "/" + rel}`);
+  res.setHeader("Location", new URL(`${supabaseUrl()}/storage/v1${rel.startsWith("/") ? rel : "/" + rel}`).href);
   res.status(302).end();
 });

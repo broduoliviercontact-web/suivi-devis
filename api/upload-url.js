@@ -13,5 +13,5 @@ export default route(["POST"], async (req, res) => {
   const path = `${new Date().getFullYear()}/${crypto.randomBytes(6).toString("hex")}-${clean}`;
   const r = await sb(`/storage/v1/object/upload/sign/${BUCKET}/${path}`, { method: "POST", body: {} });
   const rel = r.url || r.signedURL;
-  res.status(200).json({ path, uploadUrl: `${supabaseUrl()}/storage/v1${rel.startsWith("/") ? rel : "/" + rel}` });
+  res.status(200).json({ path, uploadUrl: new URL(`${supabaseUrl()}/storage/v1${rel.startsWith("/") ? rel : "/" + rel}`).href });
 });

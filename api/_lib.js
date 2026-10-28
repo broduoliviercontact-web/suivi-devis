@@ -5,7 +5,8 @@ export const TABLES = ["devis", "offres"];
 export const BUCKET = "devis";
 
 const env = (k) => {
-  const v = process.env[k];
+  // trim: values pasted into Vercel often carry a trailing newline or space
+  const v = (process.env[k] || "").replace(/[\s\u200b\ufeff]+/g, k === "APP_PASSWORD" ? " " : "").trim();
   if (!v) throw Object.assign(new Error(`Variable d'environnement manquante : ${k}`), { status: 500 });
   return v;
 };
