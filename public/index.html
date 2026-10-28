@@ -91,7 +91,22 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .row.th>div{padding:8px 4px;text-align:center}
 .row.th>div.l{text-align:left}
 .num{font-family:var(--mono);font-size:.85rem;padding-left:12px;display:flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums}
-.objc{min-width:0;display:flex;align-items:center;gap:6px;padding:6px 10px 6px 4px}
+.objc{min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;padding:6px 10px 6px 4px}
+:root{--loc:#e3edfa;--loc-i:#1d4f91;--loc-b:#b7cdeb;--ach:#fdebd3;--ach-i:#8a4b06;--ach-b:#f1c993}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--loc:#1f3047;--loc-i:#a9c8f2;--loc-b:#34507a;--ach:#3d2c17;--ach-i:#f3c487;--ach-b:#6b4a22}}
+:root[data-theme="dark"]{--loc:#1f3047;--loc-i:#a9c8f2;--loc-b:#34507a;--ach:#3d2c17;--ach-i:#f3c487;--ach-b:#6b4a22}
+.kind{flex:none;font:600 .64rem/1 var(--body);letter-spacing:.07em;text-transform:uppercase;padding:3px 6px;border-radius:3px;border:1px solid;cursor:pointer}
+.kind:disabled{cursor:default}
+.kind.loc{background:var(--loc);color:var(--loc-i);border-color:var(--loc-b)}
+.kind.ach{background:var(--ach);color:var(--ach-i);border-color:var(--ach-b)}
+.dates{flex-basis:100%;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-left:1px}
+.kind-seg{display:flex;gap:0}
+.kind-seg button{flex:1;padding:8px 10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:.82rem;letter-spacing:.06em}
+.kind-seg button:first-child{border-radius:4px 0 0 4px}.kind-seg button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}
+.kind-seg button[aria-pressed="true"][data-k="location"]{background:var(--loc);color:var(--loc-i);border-color:var(--loc-b);position:relative}
+.kind-seg button[aria-pressed="true"][data-k="achat"]{background:var(--ach);color:var(--ach-i);border-color:var(--ach-b);position:relative}
+.kind-label{display:flex;flex-direction:column;gap:5px;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+[data-skin="tableur"] .kind-label{text-transform:none;letter-spacing:0;font-size:.8rem}
 .obj{min-width:0;text-align:left;background:none;border:0;padding:4px 0;font-weight:600;overflow-wrap:anywhere}
 .obj:hover{text-decoration:underline;text-underline-offset:3px}
 .clip{flex:none;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.72rem;color:var(--blue);text-decoration:none;border:1px solid color-mix(in srgb,var(--blue) 40%,transparent);border-radius:4px;padding:2px 6px}
@@ -387,6 +402,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
     <form id="baseForm" autocomplete="off" class="grid2">
       <label>Événement<input id="fEvent" list="events" required placeholder="ex. Ouverture 6-8/11"></label>
       <label>Besoin<input id="fObjet" list="objets" required placeholder="ex. Praticables, talkies, sécu…"></label>
+      <div class="kind-label full"><span>Type</span><div class="kind-seg" id="fKind" role="group" aria-label="Type">
+        <button type="button" data-k="location">Location</button><button type="button" data-k="achat">Achat</button></div></div>
+      <label class="loc-only">Début de location<input type="date" id="fDebut"></label>
+      <label class="loc-only">Fin de location<input type="date" id="fFin"></label>
       <p class="err full" id="fErr" hidden></p>
       <div class="actions full">
         <button type="button" class="danger" id="delBtn" hidden>Supprimer ce besoin</button>
@@ -561,7 +580,9 @@ function renderEvents(){
       const [cls,lab]=status(d), f=rowFile(d);
       html+=`<div class="row"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
-        (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+`</div>`+
+        `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer en "+(kindOf(d)==="achat"?"location":"achat"):""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
+        (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
+        (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin)}</span>`:"")+`</div>`+
         `<div class="offc">${offerCell(d)}</div><div class="checks">`+
         STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
@@ -722,6 +743,24 @@ $("evForm").addEventListener("submit",e=>{
 });
 $("addBtn").onclick=()=>openFiche(null);
 
+/* ---------- location / achat ---------- */
+const kindOf=d=>d.type==="achat"?"achat":"location";
+const fmtD=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");if(!m)return"";const d=new Date(+m[1],+m[2]-1,+m[3]);return d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}).replace(/\./g,"")};
+function fmtRange(a,b){if(a&&b){const n=Math.round((new Date(b)-new Date(a))/864e5)+1;return `${fmtD(a)} → ${fmtD(b)}`+(n>0?` · ${n} j`:"")}return a?`à partir du ${fmtD(a)}`:`jusqu'au ${fmtD(b)}`}
+let fKind="location";
+function paintKind(){
+  document.querySelectorAll("#fKind button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===fKind));
+  document.querySelectorAll("#baseForm .loc-only").forEach(l=>l.hidden=fKind!=="location");
+}
+$("fKind").addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(b&&canWrite){fKind=b.dataset.k;paintKind()}});
+$("list").addEventListener("click",e=>{
+  const t=e.target.closest("[data-kind]");if(!t||!canWrite)return;
+  e.stopPropagation();
+  const d=devisById(t.dataset.kind);if(!d)return;
+  const type=kindOf(d)==="achat"?"location":"achat";
+  d.type=type;write(d._id,()=>api("devis",d._id,"update",{type}));render();
+},true);
+
 /* ---------- fiche (panel) ---------- */
 function openFiche(id,prefillEvent){
   const d=id?devisById(id):null;
@@ -729,7 +768,8 @@ function openFiche(id,prefillEvent){
   if(!id&&!canWrite)return;
   fiche={id:id||null};oMode=null;
   $("fEvent").value=d?.evenement||prefillEvent||"";$("fObjet").value=d?.objet||"";
-  [$("fEvent"),$("fObjet"),$("saveBtn")].forEach(x=>x.disabled=!canWrite);
+  fKind=d?kindOf(d):"location";$("fDebut").value=d?.debut||"";$("fFin").value=d?.fin||"";paintKind();
+  [$("fEvent"),$("fObjet"),$("fDebut"),$("fFin"),$("saveBtn"),...document.querySelectorAll("#fKind button")].forEach(x=>x.disabled=!canWrite);
   $("saveBtn").textContent=d?"Enregistrer":"Créer le besoin";
   $("delBtn").hidden=!d||!canWrite;$("delBtn").textContent="Supprimer ce besoin";$("delBtn").dataset.armed="";
   $("fErr").hidden=true;
@@ -792,7 +832,9 @@ function renderMem(){
 
 $("baseForm").addEventListener("submit",e=>{
   e.preventDefault();if(!db||!canWrite)return;
-  const data={evenement:$("fEvent").value.trim(),objet:$("fObjet").value.trim()};
+  const data={evenement:$("fEvent").value.trim(),objet:$("fObjet").value.trim(),type:fKind,
+    debut:fKind==="location"?($("fDebut").value||null):null,fin:fKind==="location"?($("fFin").value||null):null};
+  if(data.debut&&data.fin&&data.fin<data.debut){$("fErr").textContent="La fin de location doit être après le début.";$("fErr").hidden=false;return}
   {const other=rows.find(r=>r._id!==fiche.id&&evOf(r)===data.evenement&&r.evStyle);if(other)data.evStyle=other.evStyle}
   if(!data.evenement||!data.objet){$("fErr").textContent="Indique l'événement et le besoin.";$("fErr").hidden=false;return}
   $("fErr").hidden=true;
