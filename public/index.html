@@ -151,16 +151,23 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .cd.we{background:color-mix(in srgb,var(--bg) 30%,var(--surface))}
 .cd.today b{background:var(--fg);color:var(--surface);border-radius:999px;padding:1px 6px}
 .cd b{font-weight:600}
-.cbar{position:relative;z-index:1;margin:0 3px;align-self:start;min-width:0;text-align:left;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);border-radius:3px;padding:2px 7px;font-size:.78rem;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--body);font-weight:500}
+.cbar{position:relative;z-index:1;margin:0 3px;align-self:start;min-width:0;text-align:left;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);border-radius:3px;padding:2px 3px 2px 7px;font-size:.78rem;line-height:1.35;white-space:nowrap;font-family:var(--body);font-weight:500;display:flex;flex-wrap:wrap;align-items:center;gap:3px 6px;min-height:24px;margin-bottom:3px}
+.cbar .cl{flex:1 1 80px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cbar .hb.out{margin-left:auto}
 .cbar.cont-l{border-top-left-radius:0;border-bottom-left-radius:0;border-left-style:dashed;margin-left:0}
 .cbar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0;border-right-style:dashed;margin-right:0}
-.cbar .ch{font-weight:700;font-variant-numeric:tabular-nums}
+/* arrival / pickup badges: solid, high contrast, never truncated */
+.hb{flex:none;display:inline-flex;align-items:center;gap:3px;font-size:.72rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1;padding:3px 6px;border-radius:3px;background:var(--fg);color:var(--surface);white-space:nowrap}
+.hb i{font-style:normal;font-weight:500;opacity:.8}
+.cbar .hb.in{margin-left:-4px}
+.cbar.cont-l{padding-left:4px}
 .cbar .cf{opacity:.75;font-weight:400}
 .cbar:hover{filter:brightness(.96)}
 .cal-list{display:none;flex-direction:column;gap:8px}
 .cl-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:10px 12px;width:100%}
-.cl-when{grid-row:1 / span 2;font-size:.8rem;font-weight:600;font-variant-numeric:tabular-nums;padding:3px 7px;border-radius:3px;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);white-space:nowrap}
-.cl-when small{display:block;font-weight:500;font-size:.74rem;opacity:.8;text-align:center}
+.cl-when{grid-row:1 / span 3;font-size:.8rem;font-weight:600;font-variant-numeric:tabular-nums;padding:3px 7px;border-radius:3px;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);white-space:nowrap}
+.cl-hours{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;margin:3px 0 2px}
+.cl-item .cl-meta{grid-column:2}
 .cl-what{font-weight:600;min-width:0;overflow-wrap:anywhere}
 .cl-meta{color:var(--muted);font-size:.84rem;min-width:0;overflow-wrap:anywhere}
 .cal-undated{display:flex;flex-direction:column;gap:8px;margin-top:18px}
@@ -1006,7 +1013,7 @@ function renderCalendar(){
   // weeks from the Monday on/before the 1st to the Sunday on/after the last day
   const start=new Date(y,m,1-((first.getDay()+6)%7));
   const end=new Date(y,m+1,0+(7-((last.getDay()+6)%7)-1));
-  const label=(l,first,last)=>`${first&&l.r.hDebut?`<span class="ch">${esc(fmtH(l.r.hDebut))}</span> `:""}${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}${last&&l.r.hFin?` <span class="ch">→ ${esc(fmtH(l.r.hFin))}</span>`:""}`;
+  const label=(l,first,last)=>`${first&&l.r.hDebut?`<span class="hb in" title="Arrivée du matériel"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}<span class="cl">${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}</span>${last&&l.r.hFin?`<span class="hb out" title="Reprise du matériel"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}`;
   const tip=l=>esc(`${l.r.objet||""} · ${evOf(l.r)}${l.four?" · "+l.four:""}\n${fmtRange(l.r.debut,l.r.fin,l.r.hDebut,l.r.hFin)}`);
   let html=`<div class="cal"><div class="cal-dow">${["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(d=>`<div>${d}</div>`).join("")}</div>`;
   for(let w=new Date(start);w<=end;w=new Date(w.getFullYear(),w.getMonth(),w.getDate()+7)){
@@ -1024,11 +1031,11 @@ function renderCalendar(){
       let lane=lanes.findIndex(end=>end<c0); if(lane<0){lane=lanes.length;lanes.push(c1)}else lanes[lane]=c1;
       bars+=`<button type="button" class="cbar ${l.c}${l.a<w?" cont-l":""}${l.b>wEnd?" cont-r":""}" style="grid-column:${c0+1} / ${c1+2};grid-row:${lane+2}" data-open="${esc(l.r._id)}" title="${tip(l)}">${label(l,l.a>=w,l.b<=wEnd)}</button>`;
     }
-    html+=`<div class="cal-week" style="grid-template-rows:28px repeat(${lanes.length},26px) minmax(10px,1fr)">${cells}${bars}</div>`;
+    html+=`<div class="cal-week" style="grid-template-rows:28px repeat(${lanes.length},auto) minmax(10px,1fr)">${cells}${bars}</div>`;
   }
   html+=`</div>`;
   // phone: chronological list for the month
-  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}${l.r.hDebut||l.r.hFin?`<small>${esc([fmtH(l.r.hDebut)||"…",fmtH(l.r.hFin)||"…"].join(" → "))}</small>`:""}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span><span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
+  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
   const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evDate(evOf(a))-evDate(evOf(b))||a.num-b.num);
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;
