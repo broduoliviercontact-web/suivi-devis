@@ -392,6 +392,87 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 [data-skin="tableur"] .gate input{border-radius:2px;background:var(--surface);border-color:var(--line)}
 .skin-btn{white-space:nowrap}
 .head-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+/* ================= iPhone / phones ================= */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,a,input,label{-webkit-tap-highlight-color:transparent}
+.sep-l,.foot{display:none}
+@media (max-width:640px){
+  .wrap{gap:14px;padding-block:14px 40px}
+  header{flex-wrap:nowrap;align-items:center;gap:10px}
+  header h1,[data-skin] header h1{font-size:1.45rem}
+  header .sub{display:none}
+  .head-actions{flex-wrap:nowrap}
+  #skinBtn{display:none}
+  #addBtn{white-space:nowrap;padding:10px 14px;min-height:42px}
+  .foot{display:flex;justify-content:center;padding-top:10px}
+  /* tabs: three equal segments */
+  .tabs,[data-skin] .tabs{display:grid;grid-template-columns:repeat(3,1fr)}
+  .tabs button,[data-skin] .tabs button{padding:9px 4px;font-size:.86rem;text-align:center;min-height:42px}
+  /* filters: one swipeable line */
+  .filters,[data-skin] .filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px));scroll-padding-inline:16px}
+  .filters::-webkit-scrollbar{display:none}
+  .filters button{flex:none;min-height:38px;white-space:nowrap}
+  .legend{display:none}
+  /* event header: label + « + Besoin » on one line, counts under */
+  .ev-head,[data-skin] .ev-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 10px;margin-bottom:8px}
+  .ev-head .tape{justify-self:start;max-width:100%;overflow-wrap:anywhere}
+  [data-skin] .tape{border-bottom:1px solid var(--line);border-radius:3px;margin-bottom:0}
+  .ev-add,[data-skin] .ev-add{grid-column:2;grid-row:1;margin:0;min-height:38px}
+  .ev-count,[data-skin] .ev-count{grid-column:1 / -1;margin:0}
+  /* besoin cards */
+  .row{grid-template-columns:minmax(0,1fr);gap:4px;padding:12px}
+  .num{grid-row:1;font-size:.8rem}
+  .objc{grid-row:2;padding:0}
+  .obj{font-size:1.02rem}
+  .offc,.offbtn{grid-column:1;padding:2px 0 0;min-height:30px}
+  [data-skin] .offbtn{border-left:0;padding:2px 0 0}
+  /* steps 4 across, invoices 3 across with a « Facture » label: always two lines */
+  .checks{grid-column:1;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;margin-top:8px}
+  .checks .ck,[data-skin] .checks .ck{justify-self:stretch;width:auto;border-radius:6px}
+  .checks .ck{grid-column:span 3;justify-content:center;min-height:38px;padding:4px 2px;font-size:.78rem;gap:5px;min-width:0}
+  .checks .ck .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .checks .ck.fact .lf{display:none}
+  .checks .sep,[data-skin] .checks .sep{display:flex;grid-column:span 3;align-items:center;border:0;background:none;width:auto;height:auto}
+  .sep-l{display:inline;font-size:.74rem;font-weight:600;color:var(--muted)}
+  .checks .ck.fact{grid-column:span 3}
+  [data-skin] .ck svg{width:14px;height:14px;flex:none}
+  .subrows{margin-top:-10px}
+  /* sheets (fiche, event, proposal) open full screen like an iOS sheet */
+  .veil{padding:env(safe-area-inset-top,0px) 0 0;align-items:stretch;background:rgba(0,0,0,.35)}
+  .panel,.small-panel,[data-skin] .panel{max-width:none;margin:0;min-height:100%;border:0;border-radius:12px 12px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:16px;box-shadow:none}
+  .p-head{position:sticky;top:calc(-1 * 18px);z-index:2;background:var(--surface);margin:-18px -16px 0;padding:16px 16px 10px;border-bottom:1px solid var(--line)}
+  .panel h2,[data-skin] .panel h2{font-size:1.15rem}
+  .x{width:40px;height:40px}
+  .grid2{grid-template-columns:1fr}
+  .actions .r{width:100%}
+  .actions .r .primary{flex:1}
+  .o-acts .ghost{min-height:38px}
+  .kind-seg button{min-height:42px}
+  /* no auto-zoom on iOS: inputs at 16px */
+  input,textarea,select,.panel input:not([type=file]),.panel textarea,[data-skin] .panel input:not([type=file]),[data-skin] .panel textarea,.search,.gate input{font-size:16px!important}
+  .panel input:not([type=file]),.panel textarea,.search{min-height:44px}
+  input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;width:100%;text-align:left;line-height:1.4}
+  input[type=date]::-webkit-date-and-time-value{text-align:left}
+  /* price memory: one card per proposal */
+  .mem-table thead{display:none}
+  .mem-table,.mem-table tbody{display:block}
+  .mem-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:10px 12px;border-top:1px solid var(--line)}
+  .mem-table tr:first-child{border-top:0}
+  .mem-table td,[data-skin] .mem-table td{display:block;border:0!important;padding:0!important;min-width:0}
+  .mem-table td.det{grid-column:1 / -1;font-size:.84rem}
+  .mem-table td:nth-child(4){grid-column:1}
+  .mem-table td:nth-child(5){grid-column:2;grid-row:3;text-align:right}
+  .mem-table .det{min-width:0}
+  .mem-tape{text-transform:none!important}
+  /* calendar header */
+  .cal-bar{gap:8px}
+  .cal-title{order:-1;flex-basis:100%;font-size:1.15rem}
+}
+@media (max-width:360px){
+  .checks .ck{font-size:.72rem}
+  .tabs button{font-size:.8rem}
+}
 </style>
 </head>
 <body>
@@ -448,6 +529,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
   </div>
 
   <p class="notice" id="notice" hidden></p>
+  <footer class="foot"><button class="ghost sm" id="skinBtn2" type="button"></button></footer>
 </div>
 
 <datalist id="events"></datalist>
@@ -626,11 +708,13 @@ function renderFilters(){
   $("filters").innerHTML=FILTERS.map(([k,l])=>`<button type="button" data-f="${k}" aria-pressed="${filter===k}">${l}<span class="n">${rows.filter(match[k]).length}</span></button>`).join("");
 }
 function ck(d,key,label,fact){
-  return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?"Facture ":""}${label}</span></button>`;
+  return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?'<span class="lf">Facture </span>':""}${label}</span></button>`;
 }
 // Text with clickable web links (escaped first)
 const URL_RE=/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
 const linkify=t=>esc(t).replace(URL_RE,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+// Same, but long addresses shown as « site.fr › page… » so they never stretch a card
+const linkifyShort=t=>esc(t).replace(URL_RE,u=>{let h=u,pth='';try{const x=new URL(u.replace(/&amp;/g,'&'));h=x.hostname.replace(/^www\./,'');pth=decodeURIComponent(x.pathname).replace(/^\/|\/$/g,'').split('/').pop().replace(/\.[a-z]+$/i,'').replace(/[-_]+/g,' ').trim()}catch(_){}return `<a href="${u}" target="_blank" rel="noopener noreferrer" title="${u}">${esc(h)}${pth?' › '+esc(pth.length>38?pth.slice(0,38)+'…':pth):''} ↗</a>`});
 const firstUrl=t=>{const m=String(t||"").match(URL_RE);return m?m[0]:null};
 const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,"")}catch(_){return "site"}};
 function subRows(d){
@@ -694,7 +778,7 @@ function renderEvents(){
         (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
-        STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"></div>`+
+        STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
       if(openRows.has(d._id)&&supplierGroups(d._id).length)html+=subRows(d);
     }
@@ -725,10 +809,10 @@ function renderMemory(){
   for(const g of [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name,"fr"))){
     const prices=g.items.map(e=>e.o.montant).filter(n=>n!=null);
     const fours=new Set(g.items.map(e=>keyOf(e.o.fournisseur))).size;
-    html+=`<section class="event"><div class="ev-head"><span class="tape">${esc(g.name)}</span><span class="ev-count">${g.items.length} proposition${g.items.length>1?"s":""} · ${fours} fournisseur${fours>1?"s":""}${prices.length?" · de "+eur(Math.min(...prices))+" à "+eur(Math.max(...prices)):""}</span></div>`+
+    html+=`<section class="event"><div class="ev-head"><span class="tape mem-tape ${evClass({c:"grey"})}">${esc(g.name)}</span><span class="ev-count">${g.items.length} proposition${g.items.length>1?"s":""} · ${fours} fournisseur${fours>1?"s":""}${prices.length?" · de "+eur(Math.min(...prices))+" à "+eur(Math.max(...prices)):""}</span></div>`+
       `<div class="sheet mem-wrap"><table class="mem-table"><thead><tr><th>Fournisseur</th><th>Montant</th><th>Ce qui est loué</th><th>Événement</th><th></th></tr></thead><tbody>`;
     for(const e of g.items){
-      html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${linkify(e.o.detail||"")}</td>`+
+      html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${linkifyShort(e.o.detail||"")}</td>`+
         `<td><button type="button" class="linkish" data-open="${esc(e.d._id)}">${esc(e.d.evenement||"")} · ${pad(e.d.num)}</button><div class="notice">${day(e.o.cree)}</div></td>`+
         `<td>${e.retenue?'<span class="yes">✓ Retenu</span><br>':""}${fileLink(e.o.fichierId,e.o.fichierNom,ext(e.o.fichierNom))}</td></tr>`;
     }
@@ -802,8 +886,9 @@ const COLORS=[["yellow","Jaune"],["orange","Orange"],["red","Rouge"],["pink","Ro
 const SIZES={s:"calc(var(--tape-k,1)*1.05rem)",m:"calc(var(--tape-k,1)*1.35rem)",l:"calc(var(--tape-k,1)*1.75rem)",xl:"calc(var(--tape-k,1)*2.2rem)"};
 const defStyle=()=>document.documentElement.dataset.skin==="tableur"?{c:"grey",b:true,i:false,s:false,l:false,u:false,z:"m"}:{c:"yellow",b:true,i:false,s:false,l:false,u:true,z:"m"};
 /* skin switch: « Cahier » (paper) or « Atelier » (the original look), remembered per browser */
-function paintSkinBtn(){const t=document.documentElement.dataset.skin==="tableur";$("skinBtn").textContent=t?"Style atelier":"Style tableur";$("skinBtn").title=t?"Passer à l'affichage atelier":"Revenir à l'affichage tableur"}
+function paintSkinBtn(){const t=document.documentElement.dataset.skin==="tableur";for(const id of ["skinBtn","skinBtn2"]){$(id).textContent=t?"Style atelier":"Style tableur";$(id).title=t?"Passer à l'affichage atelier":"Revenir à l'affichage tableur"}}
 $("skinBtn").onclick=()=>{const n=document.documentElement.dataset.skin==="tableur"?"atelier":"tableur";document.documentElement.dataset.skin=n;try{localStorage.setItem("devis-skin",n)}catch(_){}paintSkinBtn();render()};
+$("skinBtn2").onclick=()=>$("skinBtn").click();
 paintSkinBtn();
 const evOf=r=>(r.evenement||"Sans événement").trim();
 function styleOfEvent(ev){const r=rows.find(r=>evOf(r)===ev&&r.evStyle);return {...defStyle(),...(r?r.evStyle:{})}}
@@ -978,7 +1063,7 @@ function renderProps(d){
     const o=g.latest, isRet=!!o.retenue;
     return `<div class="offer${isRet?" retenue":""}">
       <div class="o-top"><span class="o-four">${esc(o.fournisseur)}</span><span class="vbadge">V${o.version||1}</span>${isRet?'<span class="rbadge">✓ Retenue</span>':""}<span class="o-price">${eur(o.montant)||"Prix à venir"}</span></div>
-      ${o.detail?`<div class="o-det">${linkify(o.detail)}</div>`:""}
+      ${o.detail?`<div class="o-det">${linkifyShort(o.detail)}</div>`:""}
       <div class="o-meta">${o.ref?`<span>Réf. ${esc(o.ref)}</span>`:""}<span>${day(o.cree)}</span>${fileLink(o.fichierId,o.fichierNom,"Ouvrir le "+ext(o.fichierNom))}</div>
       ${g.olds.length?`<div class="olds">${g.olds.map(v=>`<div><s>V${v.version||1}</s><span>${eur(v.montant)||"—"}</span><span>${day(v.cree)}</span>${fileLink(v.fichierId,v.fichierNom,ext(v.fichierNom))}${v.retenue?'<span class="yes">✓ retenue</span>':""}</div>`).join("")}</div>`:""}
       ${canWrite?`<div class="o-acts">
@@ -1000,7 +1085,7 @@ function renderMem(){
   $("memList").innerHTML=items.map(e=>`<div class="mem-item">
       <div><span class="o-four">${esc(e.o.fournisseur)}</span>${e.retenue?' <span class="rbadge">✓ Retenu</span>':""}</div>
       <span class="o-price">${eur(e.o.montant)||"—"}</span>
-      ${e.o.detail?`<div class="m-det">${linkify(e.o.detail)}</div>`:""}
+      ${e.o.detail?`<div class="m-det">${linkifyShort(e.o.detail)}</div>`:""}
       <div class="m-meta"><span>${esc(e.d.evenement||"")} · ${pad(e.d.num)}</span><span>${day(e.o.cree)}</span>${fileLink(e.o.fichierId,e.o.fichierNom,"Ouvrir le "+ext(e.o.fichierNom))}
       ${fiche.id&&canWrite?`<button type="button" class="ghost sm" data-act="reprendre" data-o="${esc(e.o._id)}">Reprendre ce fournisseur</button>`:""}</div>
     </div>`).join("");
