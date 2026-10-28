@@ -95,6 +95,41 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 :root{--loc:#e3edfa;--loc-i:#1d4f91;--loc-b:#b7cdeb;--ach:#fdebd3;--ach-i:#8a4b06;--ach-b:#f1c993}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--loc:#1f3047;--loc-i:#a9c8f2;--loc-b:#34507a;--ach:#3d2c17;--ach-i:#f3c487;--ach-b:#6b4a22}}
 :root[data-theme="dark"]{--loc:#1f3047;--loc-i:#a9c8f2;--loc-b:#34507a;--ach:#3d2c17;--ach-i:#f3c487;--ach-b:#6b4a22}
+/* calendar */
+.tabs{overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.cal-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.cal-nav{display:flex;gap:6px}
+.cal-nav .ghost{min-width:36px}
+.cal-title{margin:0;font-family:var(--body);font-size:1.25rem;font-weight:600;text-transform:capitalize;letter-spacing:0}
+.cal-count{color:var(--muted);font-size:.86rem}
+.cal{background:var(--surface);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.cal-dow,.cal-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cal-dow div{font-size:.74rem;font-weight:600;color:var(--muted);padding:6px 8px;border-left:1px solid var(--line);background:color-mix(in srgb,var(--bg) 60%,var(--surface))}
+.cal-dow div:first-child,.cal-week .cd:nth-child(7n+1){border-left:0}
+.cal-week{border-top:1px solid var(--line);position:relative;min-height:96px}
+.cd{grid-row:1 / -1;border-left:1px solid var(--line);padding:4px 7px;font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.cd.out{background:color-mix(in srgb,var(--bg) 55%,var(--surface));color:color-mix(in srgb,var(--muted) 55%,transparent)}
+.cd.we{background:color-mix(in srgb,var(--bg) 30%,var(--surface))}
+.cd.today b{background:var(--fg);color:var(--surface);border-radius:999px;padding:1px 6px}
+.cd b{font-weight:600}
+.cbar{position:relative;z-index:1;margin:0 3px;align-self:start;min-width:0;text-align:left;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);border-radius:3px;padding:2px 7px;font-size:.78rem;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--body);font-weight:500}
+.cbar.cont-l{border-top-left-radius:0;border-bottom-left-radius:0;border-left-style:dashed;margin-left:0}
+.cbar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0;border-right-style:dashed;margin-right:0}
+.cbar .cf{opacity:.75;font-weight:400}
+.cbar:hover{filter:brightness(.96)}
+.cal-list{display:none;flex-direction:column;gap:8px}
+.cl-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:10px 12px;width:100%}
+.cl-when{grid-row:1 / span 2;font-size:.8rem;font-weight:600;font-variant-numeric:tabular-nums;padding:3px 7px;border-radius:3px;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);white-space:nowrap}
+.cl-what{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.cl-meta{color:var(--muted);font-size:.84rem;min-width:0;overflow-wrap:anywhere}
+.cal-undated{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.cal-undated h3{margin:0;font-size:.95rem;font-weight:600;font-family:var(--body);text-transform:none;letter-spacing:0}
+.cal-undated p{margin:0;color:var(--muted);font-size:.86rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px dashed var(--line);background:var(--surface);border-radius:3px;padding:5px 10px;font-size:.84rem}
+.chips button span{color:var(--muted)}
+@media (max-width:720px){.cal{display:none}.cal-list{display:flex}}
 .kind{flex:none;font:600 .64rem/1 var(--body);letter-spacing:.07em;text-transform:uppercase;padding:3px 6px;border-radius:3px;border:1px solid;cursor:pointer}
 .kind:disabled{cursor:default}
 .kind.loc{background:var(--loc);color:var(--loc-i);border-color:var(--loc-b)}
@@ -343,6 +378,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
   <div class="tabs" role="tablist">
     <button type="button" role="tab" id="tabEv" data-view="events" aria-selected="true">Événements</button>
     <button type="button" role="tab" id="tabMem" data-view="memoire" aria-selected="false">Mémoire des prix</button>
+    <button type="button" role="tab" id="tabCal" data-view="calendrier" aria-selected="false">Calendrier</button>
   </div>
 
   <div class="view" id="viewEvents">
@@ -355,6 +391,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
       <span><i class="dot s-pay"></i>Payé</span>
     </div>
     <main id="list"><div class="empty-state">Chargement des devis…</div></main>
+  </div>
+
+  <div class="view" id="viewCal" hidden>
+    <div class="cal-bar">
+      <div class="cal-nav"><button type="button" class="ghost sm" id="calPrev" aria-label="Mois précédent">‹</button><button type="button" class="ghost sm" id="calToday">Aujourd'hui</button><button type="button" class="ghost sm" id="calNext" aria-label="Mois suivant">›</button></div>
+      <h2 class="cal-title" id="calTitle"></h2>
+      <span class="cal-count" id="calCount"></span>
+    </div>
+    <div id="calView"></div>
   </div>
 
   <div class="view" id="viewMem" hidden>
@@ -635,10 +680,11 @@ function renderLists(){
   $("fournisseurs").innerHTML=[...fo.values()].map(e=>`<option value="${esc(e)}">`).join("");
 }
 function render(){
-  $("tabEv").setAttribute("aria-selected",view==="events");$("tabMem").setAttribute("aria-selected",view==="memoire");
-  $("viewEvents").hidden=view!=="events";$("viewMem").hidden=view!=="memoire";
+  if(!["events","memoire","calendrier"].includes(view))view="events";
+  $("tabEv").setAttribute("aria-selected",view==="events");$("tabMem").setAttribute("aria-selected",view==="memoire");$("tabCal").setAttribute("aria-selected",view==="calendrier");
+  $("viewEvents").hidden=view!=="events";$("viewMem").hidden=view!=="memoire";$("viewCal").hidden=view!=="calendrier";
   renderLists();
-  if(view==="events")renderEvents();else renderMemory();
+  if(view==="events")renderEvents();else if(view==="memoire")renderMemory();else renderCalendar();
   if(fiche)renderFiche();
 }
 
@@ -760,6 +806,64 @@ $("list").addEventListener("click",e=>{
   const type=kindOf(d)==="achat"?"location":"achat";
   d.type=type;write(d._id,()=>api("devis",d._id,"update",{type}));render();
 },true);
+
+/* ---------- calendrier des locations ---------- */
+let calMonth=(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),1)})();
+try{const m=/^(\d{4})-(\d{2})$/.exec(localStorage.getItem("devis-cal")||"");if(m)calMonth=new Date(+m[1],+m[2]-1,1)}catch(_){}
+const isoOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const dayOf=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?new Date(+m[1],+m[2]-1,+m[3]):null};
+function locations(){
+  return rows.filter(r=>kindOf(r)==="location"&&(r.debut||r.fin)).map(r=>{
+    let a=dayOf(r.debut||r.fin), b=dayOf(r.fin||r.debut); if(b<a)[a,b]=[b,a];
+    const ret=retained(r._id), g=supplierGroups(r._id);
+    const four=ret?ret.fournisseur:(g.length===1?g[0].latest.fournisseur:"");
+    return {r,a,b,four,c:evClass(styleOfEvent(evOf(r)))};
+  }).sort((x,y)=>x.a-y.a||x.b-y.b||x.r.num-y.r.num);
+}
+function setCal(d){calMonth=new Date(d.getFullYear(),d.getMonth(),1);try{localStorage.setItem("devis-cal",isoOf(calMonth).slice(0,7))}catch(_){}renderCalendar()}
+$("calPrev").onclick=()=>setCal(new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1));
+$("calNext").onclick=()=>setCal(new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1));
+$("calToday").onclick=()=>setCal(new Date());
+$("calView").addEventListener("click",e=>{const o=e.target.closest("[data-open]");if(o)openFiche(o.dataset.open)});
+function renderCalendar(){
+  const y=calMonth.getFullYear(), m=calMonth.getMonth();
+  const first=new Date(y,m,1), last=new Date(y,m+1,0);
+  $("calTitle").textContent=first.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  const all=locations();
+  const inMonth=all.filter(l=>l.b>=first&&l.a<=last);
+  $("calCount").textContent=inMonth.length?`${inMonth.length} location${inMonth.length>1?"s":""} ce mois-ci`:"Aucune location ce mois-ci";
+  const todayIso=isoOf(new Date());
+  // weeks from the Monday on/before the 1st to the Sunday on/after the last day
+  const start=new Date(y,m,1-((first.getDay()+6)%7));
+  const end=new Date(y,m+1,0+(7-((last.getDay()+6)%7)-1));
+  const label=l=>`${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}`;
+  const tip=l=>esc(`${l.r.objet||""} · ${evOf(l.r)}${l.four?" · "+l.four:""}\n${fmtRange(l.r.debut,l.r.fin)}`);
+  let html=`<div class="cal"><div class="cal-dow">${["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(d=>`<div>${d}</div>`).join("")}</div>`;
+  for(let w=new Date(start);w<=end;w=new Date(w.getFullYear(),w.getMonth(),w.getDate()+7)){
+    const wEnd=new Date(w.getFullYear(),w.getMonth(),w.getDate()+6);
+    let cells="";
+    for(let i=0;i<7;i++){
+      const d=new Date(w.getFullYear(),w.getMonth(),w.getDate()+i);
+      cells+=`<div class="cd${d.getMonth()!==m?" out":""}${i>4?" we":""}${isoOf(d)===todayIso?" today":""}" style="grid-column:${i+1}"><b>${d.getDate()}</b>${d.getDate()===1?" "+d.toLocaleDateString("fr-FR",{month:"short"}):""}</div>`;
+    }
+    // lanes: first-fit so overlapping rentals stack
+    const lanes=[]; let bars="";
+    for(const l of all.filter(l=>l.b>=w&&l.a<=wEnd)){
+      const s=l.a<w?w:l.a, e=l.b>wEnd?wEnd:l.b;
+      const c0=Math.round((s-w)/864e5), c1=Math.round((e-w)/864e5);
+      let lane=lanes.findIndex(end=>end<c0); if(lane<0){lane=lanes.length;lanes.push(c1)}else lanes[lane]=c1;
+      bars+=`<button type="button" class="cbar ${l.c}${l.a<w?" cont-l":""}${l.b>wEnd?" cont-r":""}" style="grid-column:${c0+1} / ${c1+2};grid-row:${lane+2}" data-open="${esc(l.r._id)}" title="${tip(l)}">${label(l)}</button>`;
+    }
+    html+=`<div class="cal-week" style="grid-template-rows:28px repeat(${lanes.length},26px) minmax(10px,1fr)">${cells}${bars}</div>`;
+  }
+  html+=`</div>`;
+  // phone: chronological list for the month
+  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span><span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
+  const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evDate(evOf(a))-evDate(evOf(b))||a.num-b.num);
+  if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
+  $("calView").innerHTML=html;
+}
+function fmtShort(a,b){const f=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}).replace(/\./g,"");return +a===+b?f(a):`${f(a)} → ${f(b)}`}
 
 /* ---------- fiche (panel) ---------- */
 function openFiche(id,prefillEvent){
