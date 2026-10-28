@@ -95,6 +95,39 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 :root{--loc:#e3edfa;--loc-i:#1d4f91;--loc-b:#b7cdeb;--ach:#fdebd3;--ach-i:#8a4b06;--ach-b:#f1c993}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--loc:#1f3047;--loc-i:#a9c8f2;--loc-b:#34507a;--ach:#3d2c17;--ach-i:#f3c487;--ach-b:#6b4a22}}
 :root[data-theme="dark"]{--loc:#1f3047;--loc-i:#a9c8f2;--loc-b:#34507a;--ach:#3d2c17;--ach-i:#f3c487;--ach-b:#6b4a22}
+/* proposals unfolded under a row */
+.offbtn{background:none;border:0;font:inherit;text-align:left;color:inherit;cursor:pointer;display:flex;align-items:center;gap:6px}
+.offbtn .chev{margin-left:auto;font-size:.8rem;color:var(--muted);transition:transform .15s}
+.offbtn[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.offbtn:hover .many{text-decoration:underline;text-underline-offset:3px}
+.subrows{border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 45%,var(--surface));padding:4px 0 6px}
+.subrow{display:grid;grid-template-columns:62px minmax(120px,1.1fr) 130px 150px minmax(0,1.6fr) auto;align-items:center;gap:0 12px;padding:5px 12px 5px 0;font-size:.88rem}
+.subrow::before{content:"";grid-column:1;justify-self:end;width:14px;height:14px;border-left:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:-12px}
+.subrow+.subrow{border-top:1px dashed var(--line)}
+.sr-four{grid-column:2;background:none;border:0;padding:0;font:inherit;font-weight:600;text-align:left;color:inherit;cursor:pointer;min-width:0;overflow-wrap:anywhere}
+.sr-four:hover{text-decoration:underline;text-underline-offset:3px}
+.is-ret .sr-four{color:var(--fg)}
+.is-ret{background:color-mix(in srgb,var(--fg) 5%,transparent)}
+.sr-price{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.gap{font-size:.8rem;font-variant-numeric:tabular-nums;color:var(--red);white-space:nowrap}
+.gap.best{color:var(--fg);font-weight:600}
+.gap.muted{color:var(--muted)}
+.sr-det{color:var(--muted);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sr-links{display:flex;gap:10px;justify-content:flex-end;white-space:nowrap}
+.sr-links a{display:inline-flex;align-items:center;gap:4px;color:var(--sel,var(--blue));font-size:.82rem;text-decoration:none}
+.sr-links a:hover{text-decoration:underline}
+.sr-links svg{width:12px;height:12px}
+.o-det a,.m-det a,.mem-table .det a{color:var(--sel,var(--blue));overflow-wrap:anywhere}
+@media (max-width:820px){
+  .subrows{border:1px solid var(--line);border-top:0;border-radius:0 0 4px 4px;margin-top:-11px;padding:4px 12px 8px}
+  .subrow{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 0}
+  .subrow::before{display:none}
+  .sr-four{grid-column:1}
+  .sr-price{grid-column:2;grid-row:1}
+  .gap{grid-column:1}
+  .sr-det{grid-column:1 / -1}
+  .sr-links{grid-column:2;grid-row:2}
+}
 /* calendar */
 .tabs{overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
@@ -303,6 +336,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
   [data-skin="tableur"] .num{align-self:stretch;background:var(--head);color:var(--head-fg);padding:0 8px;font-size:.82rem;border-right:1px solid var(--line)}
   [data-skin="tableur"] .objc{align-self:stretch;padding:3px 8px}
   [data-skin="tableur"] .offc{align-self:stretch;display:block;padding:8px 8px 6px;border-left:1px solid var(--grid)}
+  [data-skin="tableur"] .offbtn{display:flex;align-items:center;width:100%;height:100%;border-left:1px solid var(--grid)}
+  [data-skin="tableur"] .offbtn:hover{background:var(--hover)}
   [data-skin="tableur"] .ck{width:100%;height:100%;border:0;border-left:1px solid var(--grid);border-radius:0;justify-self:stretch}
   [data-skin="tableur"] .ck[aria-pressed="true"]{border-color:var(--grid)}
   [data-skin="tableur"] .sep{width:100%;border-left:1px solid var(--line);background:var(--head)}
@@ -493,6 +528,7 @@ const CLIP='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5L5.2 9
 const UPLOAD_ERR={too_large:"Le fichier dépasse 20 Mo. Envoie une version plus légère.",unsupported_type:"Ce type de fichier n'est pas accepté. Exporte le devis en PDF ou en image.",quota_or_state:"L'espace de stockage est plein. Retire d'anciens fichiers.",rate_limited:"Trop d'envois d'un coup. Réessaie dans quelques secondes.",upstream_auth:"Session expirée. Recharge la page et reconnecte-toi."};
 
 let db=null, assets=null, canWrite=true, rows=[], offres=[], filter="tous", view="events";
+const openRows=new Set();
 let fiche=null;      // null | {id} | {id:null} for a new besoin
 let oMode=null;      // null | {kind:"add"|"version"|"edit", offre?}
 let gotDevis=false;
@@ -587,6 +623,30 @@ function renderFilters(){
 function ck(d,key,label,fact){
   return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?"Facture ":""}${label}</span></button>`;
 }
+// Text with clickable web links (escaped first)
+const URL_RE=/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
+const linkify=t=>esc(t).replace(URL_RE,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+const firstUrl=t=>{const m=String(t||"").match(URL_RE);return m?m[0]:null};
+const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,"")}catch(_){return "site"}};
+function subRows(d){
+  const groups=supplierGroups(d._id).sort((a,b)=>(a.latest.montant??Infinity)-(b.latest.montant??Infinity));
+  const prices=groups.map(g=>g.latest.montant).filter(n=>n!=null), min=prices.length?Math.min(...prices):null;
+  const pct=n=>new Intl.NumberFormat("fr-FR",{maximumFractionDigits:0}).format(n);
+  return `<div class="subrows" id="sub-${esc(d._id)}">`+groups.map(g=>{
+    const o=g.latest, url=firstUrl(o.detail), rest=String(o.detail||"").replace(URL_RE,"").replace(/\s+/g," ").trim();
+    let gap="";
+    if(o.montant==null) gap=`<span class="gap muted">Prix à venir</span>`;
+    else if(prices.length>1&&o.montant===min) gap=`<span class="gap best">Le moins cher</span>`;
+    else if(prices.length>1) gap=`<span class="gap">+${eur(o.montant-min).replace(" HT","")} (+${pct((o.montant-min)/min*100)} %)</span>`;
+    return `<div class="subrow${g.retenue?" is-ret":""}">
+      <button type="button" class="sr-four" data-open="${esc(d._id)}">${g.retenue?"✓ ":""}${esc(o.fournisseur)}${(o.version||1)>1?` <span class="vbadge">V${o.version}</span>`:""}</button>
+      <span class="sr-price">${o.montant!=null?eur(o.montant):"—"}</span>
+      ${gap||"<span></span>"}
+      <span class="sr-det" title="${esc(rest)}">${esc(rest)}</span>
+      <span class="sr-links">${o.fichierId?`<a href="/api/file?p=${esc(o.fichierId)}" target="_blank" rel="noopener">${CLIP}${esc(ext(o.fichierNom))}</a>`:""}${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(url))} ↗</a>`:""}</span>
+    </div>`;
+  }).join("")+`</div>`;
+}
 function offerCell(d){
   const r=retained(d._id), groups=supplierGroups(d._id);
   if(r) return `<span class="ret">✓ <b>${esc(r.fournisseur)}</b>${r.montant!=null?" · "+eur(r.montant):""}</span>`;
@@ -628,9 +688,10 @@ function renderEvents(){
         `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer en "+(kindOf(d)==="achat"?"location":"achat"):""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
         (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin)}</span>`:"")+`</div>`+
-        `<div class="offc">${offerCell(d)}</div><div class="checks">`+
+        (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
         STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
+      if(openRows.has(d._id)&&supplierGroups(d._id).length)html+=subRows(d);
     }
     html+=`</div></section>`;
   }
@@ -662,7 +723,7 @@ function renderMemory(){
     html+=`<section class="event"><div class="ev-head"><span class="tape">${esc(g.name)}</span><span class="ev-count">${g.items.length} proposition${g.items.length>1?"s":""} · ${fours} fournisseur${fours>1?"s":""}${prices.length?" · de "+eur(Math.min(...prices))+" à "+eur(Math.max(...prices)):""}</span></div>`+
       `<div class="sheet mem-wrap"><table class="mem-table"><thead><tr><th>Fournisseur</th><th>Montant</th><th>Ce qui est loué</th><th>Événement</th><th></th></tr></thead><tbody>`;
     for(const e of g.items){
-      html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${esc(e.o.detail||"")}</td>`+
+      html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${linkify(e.o.detail||"")}</td>`+
         `<td><button type="button" class="linkish" data-open="${esc(e.d._id)}">${esc(e.d.evenement||"")} · ${pad(e.d.num)}</button><div class="notice">${day(e.o.cree)}</div></td>`+
         `<td>${e.retenue?'<span class="yes">✓ Retenu</span><br>':""}${fileLink(e.o.fichierId,e.o.fichierNom,ext(e.o.fichierNom))}</td></tr>`;
     }
@@ -789,6 +850,12 @@ $("evForm").addEventListener("submit",e=>{
 });
 $("addBtn").onclick=()=>openFiche(null);
 
+$("list").addEventListener("click",e=>{
+  const t=e.target.closest("[data-toggle]");if(!t)return;
+  e.stopPropagation();
+  const id=t.dataset.toggle;openRows.has(id)?openRows.delete(id):openRows.add(id);renderEvents();
+},true);
+
 /* ---------- location / achat ---------- */
 const kindOf=d=>d.type==="achat"?"achat":"location";
 const fmtD=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");if(!m)return"";const d=new Date(+m[1],+m[2]-1,+m[3]);return d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}).replace(/\./g,"")};
@@ -906,7 +973,7 @@ function renderProps(d){
     const o=g.latest, isRet=!!o.retenue;
     return `<div class="offer${isRet?" retenue":""}">
       <div class="o-top"><span class="o-four">${esc(o.fournisseur)}</span><span class="vbadge">V${o.version||1}</span>${isRet?'<span class="rbadge">✓ Retenue</span>':""}<span class="o-price">${eur(o.montant)||"Prix à venir"}</span></div>
-      ${o.detail?`<div class="o-det">${esc(o.detail)}</div>`:""}
+      ${o.detail?`<div class="o-det">${linkify(o.detail)}</div>`:""}
       <div class="o-meta">${o.ref?`<span>Réf. ${esc(o.ref)}</span>`:""}<span>${day(o.cree)}</span>${fileLink(o.fichierId,o.fichierNom,"Ouvrir le "+ext(o.fichierNom))}</div>
       ${g.olds.length?`<div class="olds">${g.olds.map(v=>`<div><s>V${v.version||1}</s><span>${eur(v.montant)||"—"}</span><span>${day(v.cree)}</span>${fileLink(v.fichierId,v.fichierNom,ext(v.fichierNom))}${v.retenue?'<span class="yes">✓ retenue</span>':""}</div>`).join("")}</div>`:""}
       ${canWrite?`<div class="o-acts">
@@ -928,7 +995,7 @@ function renderMem(){
   $("memList").innerHTML=items.map(e=>`<div class="mem-item">
       <div><span class="o-four">${esc(e.o.fournisseur)}</span>${e.retenue?' <span class="rbadge">✓ Retenu</span>':""}</div>
       <span class="o-price">${eur(e.o.montant)||"—"}</span>
-      ${e.o.detail?`<div class="m-det">${esc(e.o.detail)}</div>`:""}
+      ${e.o.detail?`<div class="m-det">${linkify(e.o.detail)}</div>`:""}
       <div class="m-meta"><span>${esc(e.d.evenement||"")} · ${pad(e.d.num)}</span><span>${day(e.o.cree)}</span>${fileLink(e.o.fichierId,e.o.fichierNom,"Ouvrir le "+ext(e.o.fichierNom))}
       ${fiche.id&&canWrite?`<button type="button" class="ghost sm" data-act="reprendre" data-o="${esc(e.o._id)}">Reprendre ce fournisseur</button>`:""}</div>
     </div>`).join("");
