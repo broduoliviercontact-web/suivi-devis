@@ -154,11 +154,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .cbar{position:relative;z-index:1;margin:0 3px;align-self:start;min-width:0;text-align:left;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);border-radius:3px;padding:2px 7px;font-size:.78rem;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--body);font-weight:500}
 .cbar.cont-l{border-top-left-radius:0;border-bottom-left-radius:0;border-left-style:dashed;margin-left:0}
 .cbar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0;border-right-style:dashed;margin-right:0}
+.cbar .ch{font-weight:700;font-variant-numeric:tabular-nums}
 .cbar .cf{opacity:.75;font-weight:400}
 .cbar:hover{filter:brightness(.96)}
 .cal-list{display:none;flex-direction:column;gap:8px}
 .cl-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:10px 12px;width:100%}
 .cl-when{grid-row:1 / span 2;font-size:.8rem;font-weight:600;font-variant-numeric:tabular-nums;padding:3px 7px;border-radius:3px;border:1px solid color-mix(in srgb,var(--fg) 14%,transparent);white-space:nowrap}
+.cl-when small{display:block;font-weight:500;font-size:.74rem;opacity:.8;text-align:center}
 .cl-what{font-weight:600;min-width:0;overflow-wrap:anywhere}
 .cl-meta{color:var(--muted);font-size:.84rem;min-width:0;overflow-wrap:anywhere}
 .cal-undated{display:flex;flex-direction:column;gap:8px;margin-top:18px}
@@ -172,6 +174,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .kind:disabled{cursor:default}
 .kind.loc{background:var(--loc);color:var(--loc-i);border-color:var(--loc-b)}
 .kind.ach{background:var(--ach);color:var(--ach-i);border-color:var(--ach-b)}
+.when-row{display:flex;flex-direction:column;gap:5px}
+.when-l{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+[data-skin="tableur"] .when-l{text-transform:none;letter-spacing:0;font-size:.8rem}
+.when-in{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:8px}
+.when-in input{font:inherit;font-size:1rem;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-width:0;width:100%}
+.dates b{font-weight:600;color:var(--fg)}
 .dates{flex-basis:100%;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-left:1px}
 .kind-seg{display:flex;gap:0}
 .kind-seg button{flex:1;padding:8px 10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:.82rem;letter-spacing:.06em}
@@ -571,8 +579,8 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
       <label>Besoin<input id="fObjet" list="objets" required placeholder="ex. Praticables, talkies, sécu…"></label>
       <div class="kind-label full"><span>Type</span><div class="kind-seg" id="fKind" role="group" aria-label="Type">
         <button type="button" data-k="location">Location</button><button type="button" data-k="achat">Achat</button></div></div>
-      <label class="loc-only">Début de location<input type="date" id="fDebut"></label>
-      <label class="loc-only">Fin de location<input type="date" id="fFin"></label>
+      <div class="loc-only full when-row"><span class="when-l">Arrivée du matériel</span><div class="when-in"><input type="date" id="fDebut" aria-label="Date d'arrivée"><input type="time" id="fHDebut" step="900" aria-label="Heure d'arrivée"></div></div>
+      <div class="loc-only full when-row"><span class="when-l">Reprise du matériel</span><div class="when-in"><input type="date" id="fFin" aria-label="Date de reprise"><input type="time" id="fHFin" step="900" aria-label="Heure de reprise"></div></div>
       <p class="err full" id="fErr" hidden></p>
       <div class="actions full">
         <button type="button" class="danger" id="delBtn" hidden>Supprimer ce besoin</button>
@@ -776,7 +784,7 @@ function renderEvents(){
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
         `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer en "+(kindOf(d)==="achat"?"location":"achat"):""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
         (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
-        (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin)}</span>`:"")+`</div>`+
+        (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,d.hDebut,d.hFin,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
         STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
@@ -949,7 +957,12 @@ $("list").addEventListener("click",e=>{
 /* ---------- location / achat ---------- */
 const kindOf=d=>d.type==="achat"?"achat":"location";
 const fmtD=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");if(!m)return"";const d=new Date(+m[1],+m[2]-1,+m[3]);return d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}).replace(/\./g,"")};
-function fmtRange(a,b){if(a&&b){const n=Math.round((new Date(b)-new Date(a))/864e5)+1;return `${fmtD(a)} → ${fmtD(b)}`+(n>0?` · ${n} j`:"")}return a?`à partir du ${fmtD(a)}`:`jusqu'au ${fmtD(b)}`}
+const fmtH=h=>{const m=/^(\d{2}):(\d{2})/.exec(h||"");return m?`${+m[1]}h${m[2]==="00"?"":m[2]}`:""};
+// "jeu 5 nov 9h → lun 9 nov 14h · 5 j" (hours optional); html=true wraps hours in <b>
+function fmtRange(a,b,ha,hb,html){
+  const H=h=>{const t=fmtH(h);return t?(html?` <b>${t}</b>`:` ${t}`):""};
+  if(a&&b){const n=Math.round((new Date(b)-new Date(a))/864e5)+1;return `${fmtD(a)}${H(ha)} → ${fmtD(b)}${H(hb)}`+(n>0?` · ${n} j`:"")}
+  return a?`arrivée ${fmtD(a)}${H(ha)}`:`reprise ${fmtD(b)}${H(hb)}`}
 let fKind="location";
 function paintKind(){
   document.querySelectorAll("#fKind button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===fKind));
@@ -993,8 +1006,8 @@ function renderCalendar(){
   // weeks from the Monday on/before the 1st to the Sunday on/after the last day
   const start=new Date(y,m,1-((first.getDay()+6)%7));
   const end=new Date(y,m+1,0+(7-((last.getDay()+6)%7)-1));
-  const label=l=>`${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}`;
-  const tip=l=>esc(`${l.r.objet||""} · ${evOf(l.r)}${l.four?" · "+l.four:""}\n${fmtRange(l.r.debut,l.r.fin)}`);
+  const label=(l,first,last)=>`${first&&l.r.hDebut?`<span class="ch">${esc(fmtH(l.r.hDebut))}</span> `:""}${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}${last&&l.r.hFin?` <span class="ch">→ ${esc(fmtH(l.r.hFin))}</span>`:""}`;
+  const tip=l=>esc(`${l.r.objet||""} · ${evOf(l.r)}${l.four?" · "+l.four:""}\n${fmtRange(l.r.debut,l.r.fin,l.r.hDebut,l.r.hFin)}`);
   let html=`<div class="cal"><div class="cal-dow">${["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(d=>`<div>${d}</div>`).join("")}</div>`;
   for(let w=new Date(start);w<=end;w=new Date(w.getFullYear(),w.getMonth(),w.getDate()+7)){
     const wEnd=new Date(w.getFullYear(),w.getMonth(),w.getDate()+6);
@@ -1009,13 +1022,13 @@ function renderCalendar(){
       const s=l.a<w?w:l.a, e=l.b>wEnd?wEnd:l.b;
       const c0=Math.round((s-w)/864e5), c1=Math.round((e-w)/864e5);
       let lane=lanes.findIndex(end=>end<c0); if(lane<0){lane=lanes.length;lanes.push(c1)}else lanes[lane]=c1;
-      bars+=`<button type="button" class="cbar ${l.c}${l.a<w?" cont-l":""}${l.b>wEnd?" cont-r":""}" style="grid-column:${c0+1} / ${c1+2};grid-row:${lane+2}" data-open="${esc(l.r._id)}" title="${tip(l)}">${label(l)}</button>`;
+      bars+=`<button type="button" class="cbar ${l.c}${l.a<w?" cont-l":""}${l.b>wEnd?" cont-r":""}" style="grid-column:${c0+1} / ${c1+2};grid-row:${lane+2}" data-open="${esc(l.r._id)}" title="${tip(l)}">${label(l,l.a>=w,l.b<=wEnd)}</button>`;
     }
     html+=`<div class="cal-week" style="grid-template-rows:28px repeat(${lanes.length},26px) minmax(10px,1fr)">${cells}${bars}</div>`;
   }
   html+=`</div>`;
   // phone: chronological list for the month
-  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span><span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
+  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}${l.r.hDebut||l.r.hFin?`<small>${esc([fmtH(l.r.hDebut)||"…",fmtH(l.r.hFin)||"…"].join(" → "))}</small>`:""}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span><span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
   const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evDate(evOf(a))-evDate(evOf(b))||a.num-b.num);
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;
@@ -1029,8 +1042,8 @@ function openFiche(id,prefillEvent){
   if(!id&&!canWrite)return;
   fiche={id:id||null};oMode=null;
   $("fEvent").value=d?.evenement||prefillEvent||"";$("fObjet").value=d?.objet||"";
-  fKind=d?kindOf(d):"location";$("fDebut").value=d?.debut||"";$("fFin").value=d?.fin||"";paintKind();
-  [$("fEvent"),$("fObjet"),$("fDebut"),$("fFin"),$("saveBtn"),...document.querySelectorAll("#fKind button")].forEach(x=>x.disabled=!canWrite);
+  fKind=d?kindOf(d):"location";$("fDebut").value=d?.debut||"";$("fFin").value=d?.fin||"";$("fHDebut").value=d?.hDebut||"";$("fHFin").value=d?.hFin||"";paintKind();
+  [$("fEvent"),$("fObjet"),$("fDebut"),$("fFin"),$("fHDebut"),$("fHFin"),$("saveBtn"),...document.querySelectorAll("#fKind button")].forEach(x=>x.disabled=!canWrite);
   $("saveBtn").textContent=d?"Enregistrer":"Créer le besoin";
   $("delBtn").hidden=!d||!canWrite;$("delBtn").textContent="Supprimer ce besoin";$("delBtn").dataset.armed="";
   $("fErr").hidden=true;
@@ -1094,8 +1107,9 @@ function renderMem(){
 $("baseForm").addEventListener("submit",e=>{
   e.preventDefault();if(!db||!canWrite)return;
   const data={evenement:$("fEvent").value.trim(),objet:$("fObjet").value.trim(),type:fKind,
-    debut:fKind==="location"?($("fDebut").value||null):null,fin:fKind==="location"?($("fFin").value||null):null};
-  if(data.debut&&data.fin&&data.fin<data.debut){$("fErr").textContent="La fin de location doit être après le début.";$("fErr").hidden=false;return}
+    debut:fKind==="location"?($("fDebut").value||null):null,fin:fKind==="location"?($("fFin").value||null):null,
+    hDebut:fKind==="location"?($("fHDebut").value||null):null,hFin:fKind==="location"?($("fHFin").value||null):null};
+  if(data.debut&&data.fin&&(data.fin<data.debut||(data.fin===data.debut&&data.hDebut&&data.hFin&&data.hFin<=data.hDebut))){$("fErr").textContent="La reprise doit être après l'arrivée du matériel.";$("fErr").hidden=false;return}
   {const other=rows.find(r=>r._id!==fiche.id&&evOf(r)===data.evenement&&r.evStyle);if(other)data.evStyle=other.evStyle}
   if(!data.evenement||!data.objet){$("fErr").textContent="Indique l'événement et le besoin.";$("fErr").hidden=false;return}
   $("fErr").hidden=true;
