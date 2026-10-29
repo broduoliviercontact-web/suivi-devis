@@ -133,6 +133,28 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
   .sr-det{grid-column:1 / -1}
   .sr-links{grid-column:2;grid-row:2}
 }
+/* events, bin, export, toast */
+.ev-when{font-weight:600;color:var(--fg)}
+.ev-count{min-width:0}
+.ev-n{font-style:italic}
+.ev-empty{padding:14px 16px;color:var(--muted);font-size:.9rem}
+.new-ev{display:block;width:100%;margin-top:24px;padding:14px;border:1px dashed var(--line);border-radius:4px;background:transparent;color:var(--muted);font-weight:600}
+.new-ev:hover{color:var(--fg);border-color:var(--fg)}
+.l-acts{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.ev-dates{gap:12px}
+#evNotes{min-height:70px}
+.foot{display:flex!important;flex-wrap:wrap;justify-content:center;gap:8px;padding-top:18px;margin-top:10px;border-top:1px solid var(--line)}
+@media (min-width:641px){#skinBtn2{display:none}}
+.tr-head{display:flex;flex-direction:column;gap:6px;align-items:flex-start;margin-bottom:6px}
+.tr-head h2{margin:6px 0 0;font-family:var(--body);font-size:1.3rem;font-weight:600;text-transform:none;letter-spacing:0}
+.tr-head p{margin:0;color:var(--muted);font-size:.9rem}
+.tr-sec{margin:18px 0 8px;font-family:var(--body);font-size:.95rem;font-weight:600;text-transform:none;letter-spacing:0}
+.tr-item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin-bottom:6px}
+.tr-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tr-main span{color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
+.tr-main .tr-when{font-size:.78rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);background:var(--fg);color:var(--surface);padding:10px 12px 10px 16px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:.9rem}
+.toast button{background:none;border:1px solid color-mix(in srgb,var(--surface) 45%,transparent);color:var(--surface);border-radius:4px;padding:5px 10px;font-weight:600;white-space:nowrap}
 /* unsaved-changes bar */
 .discard{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--red) 45%,var(--line));background:color-mix(in srgb,var(--red) 10%,var(--surface));border-radius:4px;font-size:.9rem;font-weight:500}
 .discard-b{display:flex;flex-wrap:wrap;gap:8px}
@@ -550,7 +572,15 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
   </div>
 
   <p class="notice" id="notice" hidden></p>
-  <footer class="foot"><button class="ghost sm" id="skinBtn2" type="button"></button></footer>
+  <div class="view" id="viewTrash" hidden><div id="trashView"></div></div>
+
+  <footer class="foot">
+    <button class="ghost sm" id="exportCsv" type="button" title="Un tableau à ouvrir dans Excel : une ligne par proposition">Exporter pour Excel</button>
+    <button class="ghost sm" id="exportJson" type="button" title="Tout le contenu du site dans un fichier, à garder en sécurité">Sauvegarde complète</button>
+    <button class="ghost sm" id="trashBtn" type="button">Corbeille</button>
+    <button class="ghost sm" id="skinBtn2" type="button"></button>
+  </footer>
+  <div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button type="button" id="toastUndo">Annuler</button></div>
 </div>
 
 <datalist id="events"></datalist>
@@ -559,10 +589,17 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
 
 <div class="veil" id="evVeil" hidden>
   <form class="panel small-panel" id="evForm" autocomplete="off" role="dialog" aria-modal="true" aria-labelledby="evTitle">
-    <div class="p-head"><h2 id="evTitle">Modifier l'événement</h2><button type="button" class="x" id="evX" aria-label="Fermer">×</button></div>
+    <div class="p-head"><h2 id="evTitle">Fiche de l'événement</h2><button type="button" class="x" id="evX" aria-label="Fermer">×</button></div>
     <div class="ev-preview" aria-hidden="true"><span class="tape" id="evPreview"></span></div>
-    <label>Nom<input id="evName" required placeholder="ex. Ouverture 6-8/11"></label>
-    <p class="hint" style="margin:-8px 0 0;color:var(--muted);font-size:.82rem">Garde la date dans le nom (« 6-8/11 », « 06/01/27 ») pour que les événements restent dans l'ordre.</p>
+    <p class="err" id="evMig" hidden>La base n'est pas encore à jour : seuls le nom et le style seront enregistrés. Exécute supabase/migration-2.sql dans Supabase pour les dates, le lieu et les notes.</p>
+    <label>Nom<input id="evName" required placeholder="ex. Ouverture de la halle"></label>
+    <div class="grid2 ev-dates">
+      <label>Date de début<input type="date" id="evD1"></label>
+      <label>Date de fin <small>(si plusieurs jours)</small><input type="date" id="evD2"></label>
+    </div>
+    <label>Lieu<input id="evLieu" placeholder="ex. Grandes Serres, Pantin"></label>
+    <label>Notes<textarea id="evNotes" placeholder="Contacts, horaires de montage, accès…"></textarea></label>
+    <p class="hint" style="margin:-6px 0 0;color:var(--muted);font-size:.82rem">Les événements sont classés par date. Sans date, celle écrite dans le nom est utilisée.</p>
     <div class="opt"><span>Couleur</span><div class="swatches" id="evColors"></div></div>
     <div class="opt"><span>Style</span><div class="toggles" id="evToggles">
       <button type="button" class="tg" data-t="b" title="Gras" aria-label="Gras"><b>G</b></button>
@@ -576,7 +613,7 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
     </div></div>
     <p class="hint" id="evHint" style="margin:0;color:var(--muted);font-size:.86rem"></p>
     <p class="err" id="evErr" hidden></p>
-    <div class="actions"><button type="button" class="linkbtn" id="evReset">Style par défaut</button><span class="r"><button type="button" class="ghost" id="evCancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></span></div>
+    <div class="actions"><span class="l-acts"><button type="button" class="linkbtn" id="evReset">Style par défaut</button><button type="button" class="danger" id="evDel" hidden>Supprimer l'événement</button></span><span class="r"><button type="button" class="ghost" id="evCancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></span></div>
   </form>
 </div>
 
@@ -640,6 +677,7 @@ const openRows=new Set();
 let fiche=null;      // null | {id} | {id:null} for a new besoin
 let oMode=null;      // null | {kind:"add"|"version"|"edit", offre?}
 let gotDevis=false;
+let events=[], trash={devis:[],offres:[],evenements:[]}, evTable=true, EV=new Map(), lastSig="", rawData=null;
 try{filter=localStorage.getItem("devis-filter")||"tous";view=localStorage.getItem("devis-view")||"events"}catch(e){}
 
 const $=id=>document.getElementById(id);
@@ -774,22 +812,23 @@ function renderEvents(){
   renderFilters();
   const list=$("list");
   if(!gotDevis) return;
-  if(!rows.length){list.innerHTML=`<div class="empty-state">Aucun devis pour l'instant. Ajoute le premier avec « + Nouveau besoin ».</div>`;return}
   const shown=rows.filter(match[filter]);
-  if(!shown.length){list.innerHTML=`<div class="empty-state">Rien dans ce filtre. Tout est à jour.</div>`;return}
   const groups=new Map();
-  for(const d of [...shown].sort((a,b)=>a.num-b.num)){
-    const k=(d.evenement||"Sans événement").trim();
-    if(!groups.has(k)) groups.set(k,[]);
-    groups.get(k).push(d);
-  }
-  const ordered=[...groups].sort((a,b)=>evDate(a[0])-evDate(b[0])||a[1][0].num-b[1][0].num);
+  for(const d of [...shown].sort((a,b)=>a.num-b.num)){const k=evKey(d);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(d)}
+  if(filter==="tous")for(const e of EV.values())if(!e.virtual&&!groups.has(e._id))groups.set(e._id,[]);
+  const newEv=canWrite?`<button type="button" class="new-ev" data-newev="1">+ Nouvel événement</button>`:"";
+  if(!groups.size){list.innerHTML=(rows.length?`<div class="empty-state">Rien dans ce filtre. Tout est à jour.</div>`:`<div class="empty-state">Aucun devis pour l'instant. Ajoute le premier avec « + Nouveau besoin ».</div>`)+(filter==="tous"?newEv:"");return}
+  const ordered=[...groups].map(([k,items])=>[EV.get(k)||{_id:k,nom:k},items]).sort((a,b)=>evTime(a[0])-evTime(b[0])||String(a[0].nom).localeCompare(String(b[0].nom),"fr"));
   let html="";
   for(const [ev,items] of ordered){
-    const all=rows.filter(r=>(r.evenement||"Sans événement").trim()===ev);
+    const all=rows.filter(r=>evKey(r)===ev._id);
     const sig=all.filter(r=>r.signe).length, pay=all.filter(r=>r.paye).length;
     const tot=all.map(r=>retained(r._id)).filter(o=>o&&o.montant!=null).reduce((s,o)=>s+o.montant,0);
-    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(styleOfEvent(ev))}" style="${evStyle(styleOfEvent(ev))}" data-ev="${esc(ev)}" title="Modifier l'événement" ${canWrite?"":"disabled"}>${esc(ev)}${canWrite?PEN:""}</button><span class="ev-count">${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev==="Sans événement"?"":ev)}">+ Besoin</button>`:""}</div><div class="sheet">`;
+    const st=styleOf(ev), when=fmtEvDates(ev);
+    const meta=[when,ev.lieu].filter(Boolean).map(esc).join(" · ");
+    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche de l'événement" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
+    if(!items.length){html+=`<div class="sheet ev-empty">Aucun besoin pour l'instant.${canWrite?` <button type="button" class="linkish" data-addev="${esc(ev.nom)}">Ajouter le premier</button>`:""}</div></section>`;continue}
+    html+=`<div class="sheet">`;
     html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${STEPS.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
@@ -805,7 +844,7 @@ function renderEvents(){
     }
     html+=`</div></section>`;
   }
-  list.innerHTML=html;
+  list.innerHTML=html+(filter==="tous"?newEv:"");
 }
 
 /* ---------- memory view ---------- */
@@ -834,7 +873,7 @@ function renderMemory(){
       `<div class="sheet mem-wrap"><table class="mem-table"><thead><tr><th>Fournisseur</th><th>Montant</th><th>Ce qui est loué</th><th>Événement</th><th></th></tr></thead><tbody>`;
     for(const e of g.items){
       html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${linkifyShort(e.o.detail||"")}</td>`+
-        `<td><button type="button" class="linkish" data-open="${esc(e.d._id)}">${esc(e.d.evenement||"")} · ${pad(e.d.num)}</button><div class="notice">${day(e.o.cree)}</div></td>`+
+        `<td><button type="button" class="linkish" data-open="${esc(e.d._id)}">${esc(evOf(e.d))} · ${pad(e.d.num)}</button><div class="notice">${day(e.o.cree)}</div></td>`+
         `<td>${e.retenue?'<span class="yes">✓ Retenu</span><br>':""}${fileLink(e.o.fichierId,e.o.fichierNom,ext(e.o.fichierNom))}</td></tr>`;
     }
     html+=`</tbody></table></div></section>`;
@@ -843,7 +882,7 @@ function renderMemory(){
 }
 
 function renderLists(){
-  const ev=[...new Set(rows.map(r=>r.evenement).filter(Boolean))].sort((a,b)=>evDate(a)-evDate(b));
+  const ev=[...EV.values()].filter(e=>e.nom&&e.nom!=="Sans événement").sort((a,b)=>evTime(a)-evTime(b)).map(e=>e.nom);
   $("events").innerHTML=ev.map(e=>`<option value="${esc(e)}">`).join("");
   const ob=new Map();rows.forEach(r=>{if(r.objet&&!ob.has(keyOf(r.objet)))ob.set(keyOf(r.objet),r.objet)});
   $("objets").innerHTML=[...ob.values()].map(e=>`<option value="${esc(e)}">`).join("");
@@ -851,11 +890,13 @@ function renderLists(){
   $("fournisseurs").innerHTML=[...fo.values()].map(e=>`<option value="${esc(e)}">`).join("");
 }
 function render(){
-  if(!["events","memoire","calendrier"].includes(view))view="events";
+  buildEvents();
+  if(!["events","memoire","calendrier","corbeille"].includes(view))view="events";
   $("tabEv").setAttribute("aria-selected",view==="events");$("tabMem").setAttribute("aria-selected",view==="memoire");$("tabCal").setAttribute("aria-selected",view==="calendrier");
-  $("viewEvents").hidden=view!=="events";$("viewMem").hidden=view!=="memoire";$("viewCal").hidden=view!=="calendrier";
+  $("viewEvents").hidden=view!=="events";$("viewMem").hidden=view!=="memoire";$("viewCal").hidden=view!=="calendrier";$("viewTrash").hidden=view!=="corbeille";
+  paintFoot();
   renderLists();
-  if(view==="events")renderEvents();else if(view==="memoire")renderMemory();else renderCalendar();
+  if(view==="events")renderEvents();else if(view==="memoire")renderMemory();else if(view==="corbeille")renderTrash();else renderCalendar();
   if(fiche)renderFiche();
 }
 
@@ -865,6 +906,7 @@ function write(id,fn){
   pending++;
   queues[id]=(queues[id]||Promise.resolve()).then(fn).catch(e=>{
     if(e&&e.code==="login")return;
+    lastSig=""; // show the server's state again on the next refresh
     showNotice(e&&e.code==="offline"?"Pas de connexion : la dernière modification n'a pas été enregistrée.":"La modification n'a pas été enregistrée. Réessaie dans un instant.");
   }).finally(()=>{pending--;if(!pending)setTimeout(refresh,300)});
   return queues[id];
@@ -899,7 +941,8 @@ $("list").addEventListener("click",e=>{
   const en=e.target.closest("[data-ev]");
   if(en&&canWrite)return openRename(en.dataset.ev);
   const ad=e.target.closest("[data-addev]");
-  if(ad)openFiche(null,ad.dataset.addev);
+  if(ad)return openFiche(null,ad.dataset.addev);
+  if(e.target.closest("[data-newev]")&&canWrite)openRename(null);
 });
 
 /* ---------- edit an event: name + look (stored on each of its besoins as evStyle) ---------- */
@@ -911,8 +954,33 @@ function paintSkinBtn(){const t=document.documentElement.dataset.skin==="tableur
 $("skinBtn").onclick=()=>{const n=document.documentElement.dataset.skin==="tableur"?"atelier":"tableur";document.documentElement.dataset.skin=n;try{localStorage.setItem("devis-skin",n)}catch(_){}paintSkinBtn();render()};
 $("skinBtn2").onclick=()=>$("skinBtn").click();
 paintSkinBtn();
-const evOf=r=>(r.evenement||"Sans événement").trim();
-function styleOfEvent(ev){const r=rows.find(r=>evOf(r)===ev&&r.evStyle);return {...defStyle(),...(r?r.evStyle:{})}}
+/* ---------- events ----------
+   An event is a fiche of its own (evenements table: nom, date, dateFin, lieu, notes, style).
+   Besoins point to it with eventId. Older besoins only carry the event's name: they map to a
+   « virtual » event whose id is derived from that name, until someone edits the event. */
+const slugId=n=>"ev-"+(String(n||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60)||"sans-evenement");
+const evKey=r=>r.eventId||slugId((r.evenement||"Sans événement").trim());
+function buildEvents(){
+  const m=new Map(events.map(e=>[e._id,{...e}]));
+  for(const r of rows){
+    const k=evKey(r);
+    if(!m.has(k))m.set(k,{_id:k,nom:(r.evenement||"Sans événement").trim(),style:r.evStyle||null,virtual:true});
+    else if(!m.get(k).style&&r.evStyle)m.get(k).style=r.evStyle;
+  }
+  EV=m;
+}
+const evObj=r=>EV.get(evKey(r))||{_id:evKey(r),nom:(r.evenement||"Sans événement").trim(),virtual:true};
+const evOf=r=>evObj(r).nom||"Sans événement";
+const styleOf=ev=>({...defStyle(),...((ev&&ev.style)||{})});
+const evTime=ev=>{const d=dayOf(ev&&ev.date);return d?d.getTime():evDate(ev&&ev.nom)};
+const evByName=name=>{const k=keyOf(name);return [...EV.values()].find(e=>keyOf(e.nom)===k)};
+function fmtEvDates(ev){
+  const a=dayOf(ev.date),b=dayOf(ev.dateFin);if(!a)return"";
+  const f=(d,o)=>d.toLocaleDateString("fr-FR",o).replace(/\./g,"");
+  if(!b||+b===+a)return f(a,{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+  if(a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear())return `${f(a,{weekday:"short",day:"numeric"})} → ${f(b,{weekday:"short",day:"numeric",month:"short",year:"numeric"})}`;
+  return `${f(a,{day:"numeric",month:"short"})} → ${f(b,{day:"numeric",month:"short",year:"numeric"})}`;
+}
 const evClass=st=>"t-"+(COLORS.some(c=>c[0]===st.c)?st.c:"yellow");
 function evStyle(st){
   const deco=[st.s&&"line-through",st.l&&"underline"].filter(Boolean).join(" ")||"none";
@@ -928,11 +996,19 @@ function paintDraft(){
   document.querySelectorAll("#evToggles .tg").forEach(b=>b.setAttribute("aria-pressed",!!draft[b.dataset.t]));
   document.querySelectorAll("#evSizes button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.z===draft.z));
 }
-function openRename(ev){
-  renaming=ev;draft=styleOfEvent(ev);
-  const n=rows.filter(r=>evOf(r)===ev).length;
-  $("evHint").textContent=`${n} besoin${n>1?"s":""} dans cet événement.`;
-  $("evName").value=ev==="Sans événement"?"":ev;$("evErr").hidden=true;
+function openRename(id){
+  const ev=id?EV.get(id):null;
+  if(id&&!ev)return;
+  renaming=ev?ev._id:"";draft=styleOf(ev);
+  const n=ev?rows.filter(r=>evKey(r)===ev._id).length:0;
+  $("evTitle").textContent=ev?"Fiche de l'événement":"Nouvel événement";
+  $("evName").value=ev&&ev.nom!=="Sans événement"?ev.nom:"";
+  const guess=ev&&!ev.date&&isFinite(evDate(ev.nom))?isoOf(new Date(evDate(ev.nom))):"";
+  $("evD1").value=ev?.date||guess;$("evD2").value=ev?.dateFin||"";$("evLieu").value=ev?.lieu||"";$("evNotes").value=ev?.notes||"";
+  $("evHint").textContent=ev?(n?`${n} besoin${n>1?"s":""} dans cet événement.`:"Aucun besoin dans cet événement."):"";
+  $("evDel").hidden=!ev||ev.virtual||n>0;$("evDel").textContent="Supprimer l'événement";$("evDel").dataset.armed="";
+  $("evErr").hidden=true;
+  $("evMig").hidden=evTable;
   paintDraft();hideDiscard();snapEv=formState("#evForm")+JSON.stringify(draft);
   $("evVeil").hidden=false;setTimeout(()=>$("evName").focus(),30);
 }
@@ -944,21 +1020,40 @@ $("evColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");
 $("evToggles").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b){draft[b.dataset.t]=!draft[b.dataset.t];paintDraft()}});
 $("evSizes").addEventListener("click",e=>{const b=e.target.closest("[data-z]");if(b){draft.z=b.dataset.z;paintDraft()}});
 $("evReset").onclick=()=>{draft={...defStyle()};paintDraft()};
+const evErr=t=>{$("evErr").textContent=t;$("evErr").hidden=false};
 $("evForm").addEventListener("submit",e=>{
   e.preventDefault();
-  const name=$("evName").value.trim().replace(/\s+/g," ");
-  if(!name){$("evErr").textContent="Indique un nom.";$("evErr").hidden=false;return}
-  const old=renaming, st={...draft};closeRename();
-  for(const r of rows.filter(r=>evOf(r)===old)){
-    const patch={};
-    if(name!==old)patch.evenement=name;
-    if(JSON.stringify({...defStyle(),...(r.evStyle||{})})!==JSON.stringify(st)||!r.evStyle)patch.evStyle=st;
-    if(!Object.keys(patch).length)continue;
-    Object.assign(r,patch);
-    write(r._id,()=>api("devis",r._id,"update",patch));
+  const nom=$("evName").value.trim().replace(/\s+/g," ");
+  if(!nom)return evErr("Indique un nom.");
+  const date=$("evD1").value||null, dateFin=$("evD2").value||null;
+  if(date&&dateFin&&dateFin<date)return evErr("La date de fin doit être après la date de début.");
+  const ev=renaming?EV.get(renaming):null;
+  const other=evByName(nom);
+  if(other&&(!ev||other._id!==ev._id))return evErr("Un autre événement porte déjà ce nom.");
+  const style={...draft};
+  if(!evTable){
+    // Database not updated yet: only the name and the look can be saved, on each besoin as before.
+    if(!ev)return evErr("Pour créer un événement vide, la base doit d'abord être mise à jour (supabase/migration-2.sql).");
+    for(const r of rows.filter(r=>evKey(r)===ev._id)){const patch={evenement:nom,evStyle:style,eventId:ev._id};Object.assign(r,patch);write(r._id,()=>api("devis",r._id,"update",patch))}
+    closeRename();render();return;
   }
-  render();
+  const id=ev?ev._id:"ev-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const doc={nom,date,dateFin,lieu:$("evLieu").value.trim(),notes:$("evNotes").value.trim(),style,cree:(ev&&ev.cree)||new Date().toISOString()};
+  const i=events.findIndex(x=>x._id===id);if(i>=0)events[i]={_id:id,...doc};else events.push({_id:id,...doc});
+  write(id,()=>api("evenements",id,"set",doc));
+  for(const r of rows.filter(r=>evKey(r)===id&&(r.eventId!==id||r.evenement!==nom))){
+    const patch={eventId:id,evenement:nom};Object.assign(r,patch);write(r._id,()=>api("devis",r._id,"update",patch));
+  }
+  closeRename();render();
 });
+$("evDel").onclick=()=>{
+  const b=$("evDel");
+  if(!b.dataset.armed){b.dataset.armed="1";b.textContent="Confirmer la suppression";return}
+  const id=renaming,ev=EV.get(id);closeRename();
+  events=events.filter(x=>x._id!==id);render();
+  write(id,()=>api("evenements",id,"delete"));
+  toast(`Événement « ${ev?ev.nom:""} » mis à la corbeille.`,()=>restoreItem("evenements",id));
+};
 $("addBtn").onclick=()=>openFiche(null);
 
 $("list").addEventListener("click",e=>{
@@ -1000,7 +1095,7 @@ function locations(){
     let a=dayOf(r.debut||r.fin), b=dayOf(r.fin||r.debut); if(b<a)[a,b]=[b,a];
     const ret=retained(r._id), g=supplierGroups(r._id);
     const four=ret?ret.fournisseur:(g.length===1?g[0].latest.fournisseur:"");
-    return {r,a,b,four,c:evClass(styleOfEvent(evOf(r)))};
+    return {r,a,b,four,c:evClass(styleOf(evObj(r)))};
   }).sort((x,y)=>x.a-y.a||x.b-y.b||x.r.num-y.r.num);
 }
 function setCal(d){calMonth=new Date(d.getFullYear(),d.getMonth(),1);try{localStorage.setItem("devis-cal",isoOf(calMonth).slice(0,7))}catch(_){}renderCalendar()}
@@ -1042,7 +1137,7 @@ function renderCalendar(){
   html+=`</div>`;
   // phone: chronological list for the month
   html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
-  const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evDate(evOf(a))-evDate(evOf(b))||a.num-b.num);
+  const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num);
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;
 }
@@ -1054,7 +1149,7 @@ function openFiche(id,prefillEvent){
   if(id&&!d)return;
   if(!id&&!canWrite)return;
   fiche={id:id||null};oMode=null;
-  $("fEvent").value=d?.evenement||prefillEvent||"";$("fObjet").value=d?.objet||"";
+  $("fEvent").value=d?(evOf(d)==="Sans événement"?"":evOf(d)):(prefillEvent||"");$("fObjet").value=d?.objet||"";
   fKind=d?kindOf(d):"location";$("fDebut").value=d?.debut||"";$("fFin").value=d?.fin||"";$("fHDebut").value=d?.hDebut||"";$("fHFin").value=d?.hFin||"";paintKind();
   [$("fEvent"),$("fObjet"),$("fDebut"),$("fFin"),$("fHDebut"),$("fHFin"),$("saveBtn"),...document.querySelectorAll("#fKind button")].forEach(x=>x.disabled=!canWrite);
   $("saveBtn").textContent=d?"Enregistrer":"Créer le besoin";
@@ -1104,7 +1199,7 @@ function renderFiche(){
   const d=fiche.id?devisById(fiche.id):null;
   if(fiche.id&&!d){closeFiche();return}
   $("pTitle").textContent=d?`${pad(d.num)} · ${d.objet||"Sans objet"}`:"Nouveau besoin";
-  $("pEv").textContent=d?(d.evenement||""):"Indique l'événement et le besoin, puis ajoute les propositions des fournisseurs.";
+  $("pEv").textContent=d?evOf(d):"Indique l'événement et le besoin, puis ajoute les propositions des fournisseurs.";
   $("propSec").hidden=!d;
   $("offerForm").hidden=!oMode;
   $("addOfferBtn").hidden=!canWrite||!!oMode;
@@ -1142,7 +1237,7 @@ function renderMem(){
       <div><span class="o-four">${esc(e.o.fournisseur)}</span>${e.retenue?' <span class="rbadge">✓ Retenu</span>':""}</div>
       <span class="o-price">${eur(e.o.montant)||"—"}</span>
       ${e.o.detail?`<div class="m-det">${linkifyShort(e.o.detail)}</div>`:""}
-      <div class="m-meta"><span>${esc(e.d.evenement||"")} · ${pad(e.d.num)}</span><span>${day(e.o.cree)}</span>${fileLink(e.o.fichierId,e.o.fichierNom,"Ouvrir le "+ext(e.o.fichierNom))}
+      <div class="m-meta"><span>${esc(evOf(e.d))} · ${pad(e.d.num)}</span><span>${day(e.o.cree)}</span>${fileLink(e.o.fichierId,e.o.fichierNom,"Ouvrir le "+ext(e.o.fichierNom))}
       ${fiche.id&&canWrite?`<button type="button" class="ghost sm" data-act="reprendre" data-o="${esc(e.o._id)}">Reprendre ce fournisseur</button>`:""}</div>
     </div>`).join("");
 }
@@ -1153,28 +1248,30 @@ $("baseForm").addEventListener("submit",e=>{
     debut:fKind==="location"?($("fDebut").value||null):null,fin:fKind==="location"?($("fFin").value||null):null,
     hDebut:fKind==="location"?($("fHDebut").value||null):null,hFin:fKind==="location"?($("fHFin").value||null):null};
   if(data.debut&&data.fin&&(data.fin<data.debut||(data.fin===data.debut&&data.hDebut&&data.hFin&&data.hFin<=data.hDebut))){$("fErr").textContent="La reprise doit être après l'arrivée du matériel.";$("fErr").hidden=false;return}
-  {const other=rows.find(r=>r._id!==fiche.id&&evOf(r)===data.evenement&&r.evStyle);if(other)data.evStyle=other.evStyle}
   if(!data.evenement||!data.objet){$("fErr").textContent="Indique l'événement et le besoin.";$("fErr").hidden=false;return}
+  {const ev=evByName(data.evenement);if(ev){data.eventId=ev._id;data.evenement=ev.nom}else data.eventId=slugId(data.evenement)}
   $("fErr").hidden=true;
   if(fiche.id){
     const id=fiche.id;
     write(id,()=>api("devis",id,"update",data));
     const d=devisById(id);Object.assign(d,data);render();snapshotFiche();
   }else{
-    const num=rows.reduce((m,r)=>Math.max(m,r.num||0),0)+1;
-    const id="d"+String(num).padStart(3,"0")+"-"+Math.random().toString(36).slice(2,6);
-    const doc={num,...data,aEnvoyer:false,envoye:false,signe:false,paye:false,factSB:false,factRecue:false,factEnvoyee:false,cree:new Date().toISOString()};
-    rows.push({_id:id,...doc});
-    write(id,()=>api("devis",id,"set",doc));
+    // provisional number on screen; the server gives the real one (never twice the same)
+    const num=rows.concat(trash.devis).reduce((m,r)=>Math.max(m,r.num||0),0)+1;
+    const id="d-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    const doc={...data,aEnvoyer:false,envoye:false,signe:false,paye:false,factSB:false,factRecue:false,factEnvoyee:false,cree:new Date().toISOString()};
+    rows.push({_id:id,num,...doc});
+    write(id,async()=>{const r=await api("devis",id,"create",doc);const d=devisById(id);if(d&&r.num&&d.num!==r.num){d.num=r.num;render()}});
     openFiche(id);openOffer({kind:"add"});
   }
 });
 $("delBtn").onclick=()=>{
   const b=$("delBtn");
   if(!b.dataset.armed){b.dataset.armed="1";b.textContent="Confirmer : supprimer le besoin et ses propositions";return}
-  const id=fiche.id, offs=offersOf(id);closeFiche();
-  for(const o of offs) write(o._id,()=>api("offres",o._id,"delete"));
+  const id=fiche.id, d=devisById(id);closeFiche();
+  rows=rows.filter(r=>r._id!==id);render();
   write(id,()=>api("devis",id,"delete"));
+  toast(`${pad(d.num)} ${d.objet||""} mis à la corbeille avec ses propositions.`,()=>restoreItem("devis",id));
 };
 
 /* offers: add / new version / edit / retain / delete / reuse */
@@ -1249,11 +1346,12 @@ $("propList").addEventListener("click",e=>{
   }
   if(act==="del"){
     if(!b.dataset.armed){b.dataset.armed="1";b.textContent="Confirmer la suppression";return}
-    const same=offersOf(o.devisId).filter(x=>keyOf(x.fournisseur)===keyOf(o.fournisseur));
     // deleting the latest version removes only that version; older ones stay
     offres=offres.filter(x=>x._id!==o._id);
     write(o._id,()=>api("offres",o._id,"delete"));
-    render();return;
+    render();
+    toast(`Proposition ${o.fournisseur} V${o.version||1} mise à la corbeille.`,()=>restoreItem("offres",o._id));
+    return;
   }
 });
 $("memList").addEventListener("click",e=>{
@@ -1261,6 +1359,72 @@ $("memList").addEventListener("click",e=>{
   const o=offres.find(x=>x._id===b.dataset.o);if(!o)return;
   openOffer({kind:"add"},{fournisseur:o.fournisseur,detail:o.detail});
 });
+
+/* ---------- corbeille: 30 days to change your mind ---------- */
+const purgeDay=iso=>{const d=new Date(iso);d.setDate(d.getDate()+30);return d.toLocaleDateString("fr-FR",{day:"numeric",month:"long"})};
+function restoreItem(table,id){
+  const list=trash[table], i=list.findIndex(x=>x._id===id);
+  const target=table==="devis"?rows:table==="offres"?offres:events;
+  if(i>=0){const it={...list[i]};delete it.deleted;list.splice(i,1);target.push(it)}
+  else if(rawData){ // just deleted, not yet in the bin list
+    const it=(rawData[table]||[]).find(x=>x._id===id);if(it&&!target.some(x=>x._id===id)){const c={...it};delete c.deleted;target.push(c)}
+  }
+  render();write(id,()=>api(table,id,"restore"));
+}
+function renderTrash(){
+  const t=trash, n=t.devis.length+t.offres.length+t.evenements.length;
+  const item=(table,x,title,sub)=>`<div class="tr-item"><div class="tr-main"><b>${title}</b><span>${sub}</span><span class="tr-when">Supprimé le ${day(x.deleted)} · effacé pour de bon le ${purgeDay(x.deleted)}</span></div>${canWrite?`<button type="button" class="ghost sm" data-restore="${table}" data-id="${esc(x._id)}">Restaurer</button>`:""}</div>`;
+  let html=`<div class="tr-head"><button type="button" class="ghost sm" id="trBack">← Retour au tableau</button><h2>Corbeille</h2><p>Ce qui est supprimé reste ici 30 jours, puis disparaît définitivement avec ses PDF.</p></div>`;
+  if(!n)html+=`<div class="empty-state">La corbeille est vide.</div>`;
+  if(t.devis.length)html+=`<h3 class="tr-sec">Besoins (${t.devis.length})</h3>`+t.devis.map(x=>item("devis",x,`${pad(x.num)} ${esc(x.objet||"Sans objet")}`,`${esc((EV.get(evKey(x))||{}).nom||x.evenement||"")} · ${(rawData?.offres||[]).filter(o=>o.devisId===x._id).length} proposition(s)`)).join("");
+  if(t.offres.length)html+=`<h3 class="tr-sec">Propositions (${t.offres.length})</h3>`+t.offres.map(x=>{const d=devisById(x.devisId);return item("offres",x,`${esc(x.fournisseur)} V${x.version||1} · ${eur(x.montant)||"prix à venir"}`,d?`${pad(d.num)} ${esc(d.objet||"")} · ${esc(evOf(d))}`:"")}).join("");
+  if(t.evenements.length)html+=`<h3 class="tr-sec">Événements (${t.evenements.length})</h3>`+t.evenements.map(x=>item("evenements",x,esc(x.nom||""),esc([fmtEvDates(x),x.lieu].filter(Boolean).join(" · ")))).join("");
+  $("trashView").innerHTML=html;
+}
+$("trashView").addEventListener("click",e=>{
+  if(e.target.closest("#trBack")){view="events";render();return}
+  const b=e.target.closest("[data-restore]");if(b&&canWrite)restoreItem(b.dataset.restore,b.dataset.id);
+});
+function paintFoot(){
+  const n=trash.devis.length+trash.offres.length+trash.evenements.length;
+  $("trashBtn").textContent=`Corbeille${n?` (${n})`:""}`;
+}
+$("trashBtn").onclick=()=>{view=view==="corbeille"?"events":"corbeille";render();window.scrollTo({top:0})};
+
+// Undo bar after a deletion
+let toastTimer=null;
+function toast(text,undo){
+  const t=$("toast");$("toastText").textContent=text;t.hidden=false;
+  $("toastUndo").hidden=!undo;$("toastUndo").onclick=()=>{t.hidden=true;undo&&undo()};
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,8000);
+}
+
+/* ---------- export: an Excel sheet to read, a full backup to keep ---------- */
+function download(name,content,type){
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+const stamp=()=>isoOf(new Date());
+function exportRows(){
+  const yes=b=>b?"oui":"";
+  const head=["N°","Événement","Date événement","Lieu","Besoin","Type","Arrivée","Heure arrivée","Reprise","Heure reprise","À envoyer","Envoyé","Signé","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Ce qui est loué","Réf. fournisseur","PDF"];
+  const lines=[head];
+  for(const d of [...rows].sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
+    const ev=evObj(d);
+    const b=[pad(d.num),ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",kindOf(d),d.debut||"",d.hDebut||"",d.fin||"",d.hFin||"",yes(d.aEnvoyer),yes(d.envoye),yes(d.signe),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
+    const os=offersOf(d._id).sort((x,y)=>keyOf(x.fournisseur).localeCompare(keyOf(y.fournisseur))||(x.version||1)-(y.version||1));
+    if(!os.length)lines.push([...b,"","","","","","",""]);
+    for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:""]);
+  }
+  return lines;
+}
+$("exportCsv").onclick=()=>{
+  const cell=v=>{if(typeof v==="number")return String(v).replace(".",",");v=v==null?"":String(v);return /[;"\n\r]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};
+  download(`suivi-devis-${stamp()}.csv`,"﻿"+exportRows().map(l=>l.map(cell).join(";")).join("\r\n"),"text/csv;charset=utf-8");
+};
+$("exportJson").onclick=()=>{
+  download(`sauvegarde-suivi-devis-${stamp()}.json`,JSON.stringify({exporte:new Date().toISOString(),...(rawData||{devis:rows,offres,evenements:events})},null,1),"application/json");
+};
 
 /* ---------- start ---------- */
 // Data is fetched from the server, then refreshed every 15 s (and when the tab comes back),
@@ -1271,7 +1435,15 @@ async function refresh(){
   try{
     const j=await call("/api/data");
     if(pending)return;
-    rows=j.devis;offres=j.offres;gotDevis=true;$("notice").hidden=true;render();
+    $("notice").hidden=true;
+    const sig=JSON.stringify(j);
+    if(sig===lastSig&&gotDevis)return; // nothing new: no redraw, no flicker, focus kept
+    lastSig=sig;rawData=j;
+    const live=x=>!x.deleted;
+    rows=j.devis.filter(live);offres=j.offres.filter(live);events=(j.evenements||[]).filter(live);evTable=j.evTable!==false;
+    const liveIds=new Set(rows.map(r=>r._id));
+    trash={devis:j.devis.filter(x=>x.deleted),offres:j.offres.filter(x=>x.deleted&&liveIds.has(x.devisId)),evenements:(j.evenements||[]).filter(x=>x.deleted)};
+    gotDevis=true;render();
   }catch(err){if(err.code!=="login")showNotice(err.code==="offline"?"Pas de connexion : les derniers changements des autres ne s'affichent pas.":"Le tableau n'a pas pu se mettre à jour. Recharge la page.")}
 }
 function start(){

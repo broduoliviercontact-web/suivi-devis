@@ -1,13 +1,16 @@
-import { route, sb } from "./_lib.js";
+import { route, sbAll, isMissing } from "./_lib.js";
 
-// Everything the page shows: all besoins (devis) and all proposals (offres).
+// Everything the page shows: besoins (devis), proposals (offres) and event sheets (evenements).
+// Items in the bin carry data.deleted (date) and are returned too, for the « Corbeille ».
 export default route(["GET"], async (req, res) => {
-  const [devis, offres] = await Promise.all([
-    sb("/rest/v1/devis?select=id,data&limit=10000"),
-    sb("/rest/v1/offres?select=id,data&limit=20000"),
+  const [devis, offres, ev] = await Promise.all([
+    sbAll("devis"),
+    sbAll("offres"),
+    sbAll("evenements").then((r) => ({ rows: r, ok: true })).catch((e) => {
+      if (isMissing(e)) return { rows: [], ok: false }; // migration not run yet
+      throw e;
+    }),
   ]);
-  res.status(200).json({
-    devis: devis.map((r) => ({ _id: r.id, ...r.data })),
-    offres: offres.map((r) => ({ _id: r.id, ...r.data })),
-  });
+  const flat = (rows) => rows.map((r) => ({ _id: r.id, ...r.data }));
+  res.status(200).json({ devis: flat(devis), offres: flat(offres), evenements: flat(ev.rows), evTable: ev.ok });
 });

@@ -1,7 +1,7 @@
 // Shared helpers for the API routes (files starting with "_" are not routes on Vercel).
 import crypto from "node:crypto";
 
-export const TABLES = ["devis", "offres"];
+export const TABLES = ["devis", "offres", "evenements"];
 export const BUCKET = "devis";
 
 const env = (k) => {
@@ -67,6 +67,17 @@ export async function sb(path, { method = "GET", body, headers = {} } = {}) {
   return data;
 }
 export const supabaseUrl = () => env("SUPABASE_URL").replace(/\/$/, "");
+
+// Every row of a table. Supabase answers at most 1000 rows per request, so read page by page.
+export async function sbAll(table, query = "select=id,data") {
+  const out = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await sb(`/rest/v1/${table}?${query}&order=id&limit=1000&offset=${offset}`);
+    out.push(...page);
+    if (page.length < 1000) return out;
+  }
+}
+export const isMissing = (e) => /PGRST20[25]|42P01|42883|Could not find|does not exist|schema cache/i.test(String(e && e.message));
 
 /* ---------- route wrapper ---------- */
 export function route(methods, fn, { auth = true } = {}) {

@@ -36,3 +36,5 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('devis', 'devis', false, 20971520,
         array['application/pdf','image/png','image/jpeg','image/webp'])
 on conflict (id) do nothing;
+
+-- Puis exécuter aussi supabase/migration-2.sql (fiches événement + numéros attribués par la base).
