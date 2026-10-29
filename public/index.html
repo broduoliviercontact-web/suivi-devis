@@ -133,6 +133,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
   .sr-det{grid-column:1 / -1}
   .sr-links{grid-column:2;grid-row:2}
 }
+/* unsaved-changes bar */
+.discard{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--red) 45%,var(--line));background:color-mix(in srgb,var(--red) 10%,var(--surface));border-radius:4px;font-size:.9rem;font-weight:500}
+.discard-b{display:flex;flex-wrap:wrap;gap:8px}
+.discard .discard-drop{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,var(--line))}
+@media (prefers-reduced-motion:no-preference){.discard.nudge{animation:nudge .32s ease}}
+@keyframes nudge{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 /* calendar */
 .tabs{overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
@@ -927,12 +933,12 @@ function openRename(ev){
   const n=rows.filter(r=>evOf(r)===ev).length;
   $("evHint").textContent=`${n} besoin${n>1?"s":""} dans cet événement.`;
   $("evName").value=ev==="Sans événement"?"":ev;$("evErr").hidden=true;
-  paintDraft();
+  paintDraft();hideDiscard();snapEv=formState("#evForm")+JSON.stringify(draft);
   $("evVeil").hidden=false;setTimeout(()=>$("evName").focus(),30);
 }
-function closeRename(){$("evVeil").hidden=true;renaming=null;draft=null}
-$("evCancel").onclick=closeRename;$("evX").onclick=closeRename;
-$("evVeil").addEventListener("click",e=>{if(e.target===$("evVeil"))closeRename()});
+function closeRename(){$("evVeil").hidden=true;renaming=null;draft=null;hideDiscard()}
+$("evCancel").onclick=()=>tryCloseRename();$("evX").onclick=()=>tryCloseRename();
+$("evVeil").addEventListener("click",e=>{if(e.target===$("evVeil"))tryCloseRename()});
 $("evName").addEventListener("input",paintDraft);
 $("evColors").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(b){draft.c=b.dataset.c;paintDraft()}});
 $("evToggles").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b){draft[b.dataset.t]=!draft[b.dataset.t];paintDraft()}});
@@ -1055,13 +1061,43 @@ function openFiche(id,prefillEvent){
   $("delBtn").hidden=!d||!canWrite;$("delBtn").textContent="Supprimer ce besoin";$("delBtn").dataset.armed="";
   $("fErr").hidden=true;
   $("veil").hidden=false;document.body.style.overflow="hidden";
-  renderFiche();
+  renderFiche();hideDiscard();snapshotFiche();
   setTimeout(()=>{if(!d)$(prefillEvent?"fObjet":"fEvent").focus();else $("closeBtn").focus()},30);
 }
-function closeFiche(){$("veil").hidden=true;document.body.style.overflow="";fiche=null;oMode=null}
-$("closeBtn").onclick=closeFiche;
-$("veil").addEventListener("click",e=>{if(e.target===$("veil"))closeFiche()});
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(e.target&&e.target.closest&&e.target.closest("#evVeil")&&!$("evVeil").hidden){closeRename();return}if(!$("evVeil").hidden)closeRename();else if(!$("veil").hidden)closeFiche()});
+function closeFiche(){$("veil").hidden=true;document.body.style.overflow="";fiche=null;oMode=null;hideDiscard()}
+
+/* ---------- never lose what is being typed ----------
+   A fiche, a proposal or an event closes only through its own buttons; a click beside it,
+   Escape or the × first ask to confirm when something has not been saved. */
+const formState=sel=>JSON.stringify([...document.querySelectorAll(`${sel} input:not([type=file]), ${sel} textarea`)].map(i=>i.value).concat([...document.querySelectorAll(`${sel} input[type=file]`)].map(i=>i.files.length)));
+let snapFiche="", snapOffer="", snapEv="";
+const baseState=()=>formState("#baseForm")+"|"+fKind;
+function snapshotFiche(){snapFiche=baseState()}
+function offerDirty(){return !!oMode&&formState("#offerForm")!==snapOffer}
+function ficheDirty(){return !$("veil").hidden&&(baseState()!==snapFiche||offerDirty())}
+function evDirty(){return !$("evVeil").hidden&&draft&&(formState("#evForm")+JSON.stringify(draft))!==snapEv}
+function hideDiscard(){document.querySelectorAll(".discard").forEach(b=>b.hidden=true)}
+function askDiscard(panel,onDiscard,what){
+  let bar=panel.querySelector(".discard");
+  if(!bar){
+    bar=document.createElement("div");bar.className="discard";bar.setAttribute("role","alert");
+    bar.innerHTML='<span class="discard-t"></span><span class="discard-b"><button type="button" class="ghost sm" data-d="keep">Continuer à modifier</button><button type="button" class="ghost sm discard-drop" data-d="drop">Fermer sans enregistrer</button></span>';
+    const head=panel.querySelector(".p-head");head?head.after(bar):panel.prepend(bar);
+  }
+  bar.querySelector(".discard-t").textContent=what||"Tu as des modifications non enregistrées.";
+  bar.hidden=false;
+  bar.onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;bar.hidden=true;if(b.dataset.d==="drop")onDiscard()};
+  bar.scrollIntoView({block:"nearest",behavior:"smooth"});
+  bar.querySelector('[data-d="keep"]').focus({preventScroll:true});
+  bar.classList.remove("nudge");void bar.offsetWidth;bar.classList.add("nudge");
+}
+const fichePanel=()=>$("veil").querySelector(".panel");
+function tryCloseFiche(){ficheDirty()?askDiscard(fichePanel(),closeFiche):closeFiche()}
+function tryCloseRename(){evDirty()?askDiscard($("evForm"),closeRename,"Les changements de l'événement ne sont pas enregistrés."):closeRename()}
+$("closeBtn").onclick=tryCloseFiche;
+$("veil").addEventListener("click",e=>{if(e.target===$("veil"))tryCloseFiche()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("evVeil").hidden)tryCloseRename();else if(!$("veil").hidden)tryCloseFiche()});
+window.addEventListener("beforeunload",e=>{if(ficheDirty()||evDirty()){e.preventDefault();e.returnValue=""}});
 $("fObjet").addEventListener("input",()=>{if(fiche&&!fiche.id)renderMem()});
 
 function renderFiche(){
@@ -1123,7 +1159,7 @@ $("baseForm").addEventListener("submit",e=>{
   if(fiche.id){
     const id=fiche.id;
     write(id,()=>api("devis",id,"update",data));
-    const d=devisById(id);Object.assign(d,data);render();
+    const d=devisById(id);Object.assign(d,data);render();snapshotFiche();
   }else{
     const num=rows.reduce((m,r)=>Math.max(m,r.num||0),0)+1;
     const id="d"+String(num).padStart(3,"0")+"-"+Math.random().toString(36).slice(2,6);
@@ -1156,13 +1192,13 @@ function openOffer(mode,prefill){
   $("oFileHint").textContent="Pour joindre un fichier, il faut l'accès « Éditeur » à la page.";
   if(mode.kind==="edit"&&o.fichierId&&assets){$("oFileHint").hidden=false;$("oFileHint").textContent=`Fichier actuel : ${o.fichierNom||"devis"}. Choisis-en un autre pour le remplacer.`}
   $("oErr").hidden=true;
-  renderFiche();
+  renderFiche();snapOffer=formState("#offerForm");
   $("offerForm").scrollIntoView({block:"nearest"});
   setTimeout(()=>$(mode.kind==="version"?"oMontant":"oFour").focus(),30);
 }
 function nextVersion(o){return offersOf(o.devisId).filter(x=>keyOf(x.fournisseur)===keyOf(o.fournisseur)).reduce((m,x)=>Math.max(m,x.version||1),0)+1}
 $("addOfferBtn").onclick=()=>openOffer({kind:"add"});
-$("oCancel").onclick=()=>{oMode=null;renderFiche()};
+$("oCancel").onclick=()=>{const drop=()=>{oMode=null;renderFiche()};offerDirty()?askDiscard(fichePanel(),drop,"Cette proposition n'est pas enregistrée."):drop()};
 const parseMontant=v=>{const s=String(v).replace(/[\s €]/g,"").replace(/HT/i,"").replace(",",".");if(!s)return null;const n=parseFloat(s);return isNaN(n)?null:Math.round(n*100)/100};
 
 $("offerForm").addEventListener("submit",async e=>{
