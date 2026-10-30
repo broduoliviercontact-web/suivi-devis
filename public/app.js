@@ -577,6 +577,19 @@ function renderCalendar(){
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;
 }
+// Le mois affiché en PDF, avec le filtre Tout / Locations / Livraisons
+$("calPdf").onclick=async()=>{
+  const b=$("calPdf");b.disabled=true;b.textContent="Préparation du PDF…";
+  try{
+    const items=locations().map(l=>({a:l.a,b:l.b,liv:l.liv,num:l.r.num,objet:l.r.objet||"Sans objet",evenement:evOf(l.r),fournisseur:l.four,hDebut:l.r.hDebut,hFin:l.liv?null:l.r.hFin,color:l.c.replace(/^t-/,"")}));
+    const label={tout:"Locations et livraisons",loc:"Locations",liv:"Livraisons d'achats"}[calFilter];
+    const parts={tout:"Location Événementielle & Achat DTSE",loc:"Location Événementielle",liv:"Achat DTSE"}[calFilter];
+    const doc=await CalendarPdf.build({month:calMonth,items,filterLabel:label,partsLabel:parts});
+    const name=`calendrier-${isoOf(calMonth).slice(0,7)}${calFilter==="tout"?"":calFilter==="loc"?"-locations":"-livraisons"}.pdf`;
+    download(name,doc.output("arraybuffer"),"application/pdf");
+  }catch(e){console.warn(e);showNotice("Le PDF n'a pas pu être créé. Réessaie dans un instant.")}
+  finally{b.disabled=false;b.textContent="Exporter le mois en PDF"}
+};
 function fmtShort(a,b){const f=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}).replace(/\./g,"");return +a===+b?f(a):`${f(a)} → ${f(b)}`}
 
 /* ---------- fiche (panel) ---------- */

@@ -159,5 +159,5 @@
   }
 
   async function read(data, opts) { return parse(await extractLines(data), opts); }
-  g.DevisReader = { read, parse, groupLines, parseAmount };
+  g.DevisReader = { read, parse, groupLines, parseAmount, extractLines };
 })(typeof window !== "undefined" ? window : globalThis);

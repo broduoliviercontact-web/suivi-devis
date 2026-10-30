@@ -295,6 +295,35 @@ describe("deux parties : Location Événementielle / Achat DTSE", () => {
   });
 });
 
+describe("calendrier en PDF", () => {
+  // reads the text of a PDF with the site's own pdf.js (lines of text, top to bottom)
+  const pdfText = (page, file) => page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return (await DevisReader.extractLines(bytes)).map((l) => l.cells.map((c) => c.s).join(" ")).join("\n");
+  }, fs.readFileSync(file).toString("base64"));
+  test("le mois affiché, avec le filtre choisi", async () => {
+    s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07", hDebut: "08:00" } } });
+    const page = await open();
+    await page.click("#tabCal");
+    for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
+      await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
+    await page.click('[data-cf="tout"]');
+    let [dl] = await Promise.all([page.waitForEvent("download"), page.click("#calPdf")]);
+    assert.equal(dl.suggestedFilename(), "calendrier-2026-11.pdf");
+    let txt = await pdfText(page, await dl.path());
+    assert.match(txt, /Calendrier · novembre 2026/);
+    assert.match(txt, /1 location · 1 livraison/);
+    assert.match(txt, /Arr\. 9h/); assert.match(txt, /Rep\. 14h30/); assert.match(txt, /Livraison 8h/);
+    assert.match(txt, /5 nov\. -> 9 nov\.\s+arr\. 9h · rep\. 14h30\s+Location\s+#001\s+Talkies\s+Ouverture de la halle/);
+    assert.match(txt, /7 nov\.\s+livr\. 8h\s+Livraison\s+#003\s+Gaffer\s+VOEUX DU MAIRE 06\/01\/27/);
+    await page.click('[data-cf="liv"]');
+    [dl] = await Promise.all([page.waitForEvent("download"), page.click("#calPdf")]);
+    assert.equal(dl.suggestedFilename(), "calendrier-2026-11-livraisons.pdf");
+    txt = await pdfText(page, await dl.path());
+    assert.match(txt, /Gaffer/); assert.doesNotMatch(txt, /Talkies/);
+  });
+});
+
 describe("synchronisation", () => {
   test("un rafraîchissement lent ne fait jamais disparaître un besoin qu'on vient de créer", async () => {
     await s.close(); s = await startServers({ readDelay: 400 }); s.seed(SEED);

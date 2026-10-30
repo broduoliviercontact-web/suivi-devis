@@ -132,6 +132,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .sp-k{font-weight:700}
 .f-hint{font-size:.78rem;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}
 .cal-filter{margin-left:auto}
+#calPdf{white-space:nowrap}
 .mem-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .mem-bar .search{flex:1 1 260px}
 .seg{display:flex}
