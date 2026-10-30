@@ -22,8 +22,10 @@ const SEED = {
 
 let s, browser;
 const problems = [];
+const contexts = [];
 async function open(ctxOptions = { viewport: { width: 1240, height: 900 } }) {
   const ctx = await browser.newContext({ ...ctxOptions, acceptDownloads: true });
+  contexts.push(ctx);
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push("erreur JS : " + e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/401 \(Unauthorized\)/.test(m.text())) problems.push("console : " + m.text()); });
@@ -41,11 +43,11 @@ const focused = (page) => page.evaluate(() => { const e = document.activeElement
 before(async () => { browser = await chromium.launch(); });
 after(async () => { await browser.close(); });
 beforeEach(async () => { s = await startServers(); s.seed(SEED); problems.length = 0; });
-afterEach(async () => { await s.close(); assert.deepEqual(problems, [], "aucune erreur dans la page"); });
+afterEach(async () => { await Promise.all(contexts.splice(0).map((c) => c.close())); await s.close(); assert.deepEqual(problems, [], "aucune erreur dans la page"); });
 
 describe("ordinateur", () => {
   test("le mot de passe protège la page", async () => {
-    const ctx = await browser.newContext(); const page = await ctx.newPage();
+    const ctx = await browser.newContext(); contexts.push(ctx); const page = await ctx.newPage();
     await page.goto(s.base);
     assert.ok(await page.isVisible("#gate")); assert.ok(await page.isHidden("#app"));
     await page.fill("#gatePw", "faux"); await page.click("#gateForm button");
@@ -200,6 +202,51 @@ describe("achats", () => {
     const bar = await page.textContent('.cbar[data-open="d3"]');
     assert.match(bar, /Livraison 10h30/); assert.doesNotMatch(bar, /Reprise/);
     assert.equal(await page.locator('.cbar[data-open="d1"]').count(), 1, "une seule case, pas une barre sur plusieurs jours");
+  });
+});
+
+describe("lire un devis PDF", () => {
+  const FIX = new URL("./fixtures/", import.meta.url).pathname;
+  const readMsg = (page) => page.waitForFunction(() => /Lu dans|ne contient|Aucune ligne|pas pu/.test(document.getElementById("oReadMsg").textContent)).then(() => page.textContent("#oReadMsg"));
+
+  test("nouvelle proposition : le PDF remplit les champs, puis il est enregistré", async () => {
+    const page = await open();
+    await page.click('[data-open="d2"] >> nth=0'); await page.click("#addOfferBtn");
+    assert.ok(await page.isHidden("#oReadRow"), "pas de bouton tant qu'aucun PDF n'est choisi");
+    await page.setInputFiles("#oFile", FIX + "devis-designation.pdf");
+    await page.click("#oRead");
+    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s234,50\s€ HT · réf\. D-2026-114 · STAGEPRO\./u);
+    assert.equal(await page.inputValue("#oDetail"), "12 Praticable Samia 2x1 m hauteur 60 cm\n2 Escalier 3 marches\n3 Jupe de scène noire 6 m");
+    assert.equal(await page.inputValue("#oMontant"), "1234,50");
+    await page.click("#oSave"); await page.waitForTimeout(800);
+    const o = [...s.db.offres.values()].find((x) => x.fournisseur === "STAGEPRO");
+    assert.equal(o.montant, 1234.5); assert.equal(o.ref, "D-2026-114"); assert.ok(o.fichierId && s.files.has(o.fichierId));
+  });
+
+  test("nouvelle version d'un devis déjà en base : prix remplacé, texte d'avant récupérable", async () => {
+    s.files.set("2026/abc123-devis.pdf", { type: "application/pdf", body: fs.readFileSync(FIX + "devis-colonnes.pdf") });
+    s.seed({ offres: { o9: { devisId: "d2", fournisseur: "Sonolux", montant: 900, detail: "ancien détail", version: 1, retenue: false, fichierId: "2026/abc123-devis.pdf", fichierNom: "devis.pdf", cree: "2026-10-27T10:00:00Z" } } });
+    const page = await open();
+    await page.click('[data-open="d2"] >> nth=0');
+    await page.click('[data-act="version"][data-o="o9"]');
+    await page.click("#oRead");
+    assert.match(await readMsg(page), /^Lu dans le PDF : 6 lignes · 877,40\s€ HT · réf\. DV-2026-0457\./u);
+    assert.equal(await page.inputValue("#oMontant"), "877,40", "le prix de la V1 est remplacé");
+    const lignes = (await page.inputValue("#oDetail")).split("\n");
+    assert.deepEqual(lignes, ["1 Console Yamaha QL5", "4 Enceinte L-Acoustics X12", "4 Pied d'enceinte (noir, avec adaptateur)", "6 Micro HF Shure ULXD2 B58", "20 Câble XLR 10m", "1 Transport A/R"]);
+    await page.click("#oUndoRead");
+    assert.equal(await page.inputValue("#oDetail"), "ancien détail");
+  });
+
+  test("un scan est signalé, une image n'a pas de bouton", async () => {
+    const page = await open();
+    await page.click('[data-open="d2"] >> nth=0'); await page.click("#addOfferBtn");
+    await page.setInputFiles("#oFile", FIX + "devis-scan.pdf"); await page.click("#oRead");
+    assert.match(await readMsg(page), /scan ou photo/);
+    assert.equal(await page.inputValue("#oDetail"), "");
+    await page.setInputFiles("#oFile", { name: "photo.png", mimeType: "image/png", buffer: Buffer.from("x") });
+    assert.ok(await page.isHidden("#oRead"));
+    assert.match(await page.textContent("#oReadMsg"), /que sur les PDF/);
   });
 });
 

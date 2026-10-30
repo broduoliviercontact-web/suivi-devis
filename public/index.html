@@ -141,6 +141,11 @@
           <label class="full">Ce qui est loué<textarea id="oDetail" placeholder="ex. 12 praticables 2×1 m, hauteur 60 cm, 3 jours, livraison incluse"></textarea></label>
           <label>N° du devis fournisseur<input id="oRef" placeholder="ex. D-2026-114"></label>
           <label>Fichier (PDF ou image)<input type="file" id="oFile" accept="application/pdf,image/png,image/jpeg,image/webp"></label>
+          <div class="full read-row" id="oReadRow" hidden>
+            <button type="button" class="ghost sm" id="oRead">Lire le devis et pré-remplir</button>
+            <span class="read-msg" id="oReadMsg" role="status"></span>
+            <button type="button" class="linkbtn" id="oUndoRead" hidden>Rétablir le texte d'avant</button>
+          </div>
         </div>
         <p class="hint" id="oFileHint" hidden></p>
         <p class="err" id="oErr" hidden></p>
@@ -156,6 +161,7 @@
   </div>
 </div>
 
+<script src="/devis-reader.js"></script>
 <script src="/app.js"></script>
 
 </body>

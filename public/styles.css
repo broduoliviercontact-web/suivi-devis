@@ -123,6 +123,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .tr-main .tr-when{font-size:.78rem}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);background:var(--fg);color:var(--surface);padding:10px 12px 10px 16px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:.9rem}
 .toast button{background:none;border:1px solid color-mix(in srgb,var(--surface) 45%,transparent);color:var(--surface);border-radius:4px;padding:5px 10px;font-weight:600;white-space:nowrap}
+/* reading a devis PDF */
+.read-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.read-msg{font-size:.84rem;color:var(--muted)}
+.read-msg.ok{color:var(--fg)}
+.read-msg.bad{color:var(--red)}
 /* unsaved-changes bar */
 .discard{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--red) 45%,var(--line));background:color-mix(in srgb,var(--red) 10%,var(--surface));border-radius:4px;font-size:.9rem;font-weight:500}
 .discard-b{display:flex;flex-wrap:wrap;gap:8px}

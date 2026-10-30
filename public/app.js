@@ -665,6 +665,8 @@ function openOffer(mode,prefill){
   $("oFileHint").textContent="Pour joindre un fichier, il faut l'accès « Éditeur » à la page.";
   if(mode.kind==="edit"&&o.fichierId&&assets){$("oFileHint").hidden=false;$("oFileHint").textContent=`Fichier actuel : ${o.fichierNom||"devis"}. Choisis-en un autre pour le remplacer.`}
   $("oErr").hidden=true;
+  readInit={montant:$("oMontant").value,ref:$("oRef").value,four:$("oFour").value};readUndo=null;
+  paintRead("");
   renderFiche();snapOffer=formState("#offerForm");
   $("offerForm").scrollIntoView({block:"nearest"});
   setTimeout(()=>$(mode.kind==="version"?"oMontant":"oFour").focus(),30);
@@ -672,6 +674,52 @@ function openOffer(mode,prefill){
 function nextVersion(o){return offersOf(o.devisId).filter(x=>keyOf(x.fournisseur)===keyOf(o.fournisseur)).reduce((m,x)=>Math.max(m,x.version||1),0)+1}
 $("addOfferBtn").onclick=()=>openOffer({kind:"add"});
 $("oCancel").onclick=()=>{const drop=()=>{oMode=null;renderFiche()};offerDirty()?askDiscard(fichePanel(),drop,"Cette proposition n'est pas enregistrée."):drop()};
+/* ---------- « Lire le devis » : pré-remplir depuis le PDF (lu dans le navigateur, rien n'est envoyé) ---------- */
+let readInit={}, readUndo=null;
+const isPdf=n=>/\.pdf$/i.test(n||"");
+function readSource(){
+  const f=$("oFile").files[0];
+  if(f)return isPdf(f.name)||f.type==="application/pdf"?{file:f}:{image:true};
+  const o=oMode&&oMode.offre;
+  if(o&&o.fichierId&&isPdf(o.fichierNom||o.fichierId))return {path:o.fichierId};
+  return null;
+}
+function paintRead(msg,cls){
+  const src=readSource();
+  $("oReadRow").hidden=!src&&!msg;
+  $("oRead").hidden=!src||!!src.image;
+  $("oReadMsg").textContent=msg||(src&&src.image?"La lecture automatique ne marche que sur les PDF.":"");
+  $("oReadMsg").className="read-msg"+(cls?" "+cls:"");
+  $("oUndoRead").hidden=!readUndo;
+}
+$("oFile").addEventListener("change",()=>{readUndo=null;paintRead("")});
+$("oUndoRead").onclick=()=>{if(readUndo!=null){$("oDetail").value=readUndo;readUndo=null;paintRead("Texte d'avant rétabli.")}};
+$("oRead").onclick=async()=>{
+  const src=readSource();if(!src||src.image)return;
+  const b=$("oRead");b.disabled=true;b.textContent="Lecture…";paintRead("");
+  try{
+    let buf;
+    if(src.file)buf=await src.file.arrayBuffer();
+    else{const r=await fetch("/api/file?p="+encodeURIComponent(src.path),{credentials:"same-origin"});if(!r.ok)throw new Error("fichier");buf=await r.arrayBuffer()}
+    const known=[...new Set(offres.map(o=>o.fournisseur).filter(Boolean))];
+    const r=await DevisReader.read(new Uint8Array(buf),{knownSuppliers:known});
+    if(!r.hasText)return paintRead("Ce PDF ne contient pas de texte (scan ou photo) : impossible de le lire automatiquement.","bad");
+    const done=[];
+    if(r.lignes.length){
+      const before=$("oDetail").value;
+      if(before.trim()&&before.trim()!==r.lignes.join("\n"))readUndo=before;
+      $("oDetail").value=r.lignes.join("\n");$("oDetail").rows=Math.min(r.lignes.length+1,14);
+      done.push(`${r.lignes.length} ligne${r.lignes.length>1?"s":""}`);
+    }
+    const untouched=(id,k)=>!$(id).value.trim()||$(id).value===readInit[k];
+    if(r.totalHT!=null&&untouched("oMontant","montant")){$("oMontant").value=r.totalHT.toFixed(2).replace(".",",");done.push(eur(r.totalHT))}
+    if(r.ref&&untouched("oRef","ref")){$("oRef").value=r.ref;done.push("réf. "+r.ref)}
+    if(r.fournisseur&&!$("oFour").disabled&&untouched("oFour","four")){$("oFour").value=r.fournisseur;done.push(r.fournisseur)}
+    if(!done.length)return paintRead("Aucune ligne d'article reconnue dans ce devis : remplis les champs à la main.","bad");
+    paintRead(`Lu dans le PDF : ${done.join(" · ")}. Vérifie avant d'enregistrer.`,"ok");
+  }catch(e){console.warn(e);paintRead("Ce PDF n'a pas pu être lu. Remplis les champs à la main.","bad")}
+  finally{b.disabled=false;b.textContent="Lire le devis et pré-remplir"}
+};
 const parseMontant=v=>{const s=String(v).replace(/[\s €]/g,"").replace(/HT/i,"").replace(",",".");if(!s)return null;const n=parseFloat(s);return isNaN(n)?null:Math.round(n*100)/100};
 
 $("offerForm").addEventListener("submit",async e=>{
