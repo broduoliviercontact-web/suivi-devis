@@ -35,6 +35,13 @@ Pour changer le mot de passe plus tard, il suffit de modifier `APP_PASSWORD` dan
 ## Mises à jour de la base
 - **29/10/2026** : `supabase/migration-2.sql` (fiches événement, numéros de besoin attribués par la base). À exécuter une fois dans **SQL Editor**. Sans elle, le site fonctionne mais sans dates, lieu ni notes d'événement.
 
+## Les deux parties
+- **Location Événementielle** : les locations, rangées par événement. Étapes : À envoyer → Envoyé → Signé → Payé, puis factures.
+- **Achat DTSE** : les achats, rangés par **catégorie** (Consommables, Outillage…) ou par événement. Étapes : Devis demandé → Commandé → Livré → Payé, puis factures. Livraison : une date et une heure, sans reprise.
+- Le type se choisit dans la fenêtre « Nouveau besoin » (réglé par défaut sur la partie ouverte) ; changer le type fait passer le besoin dans l'autre partie.
+- Communs aux deux : calendrier (filtre Tout / Locations / Livraisons), mémoire des prix (Tout / Locations / Achats), corbeille, export, sauvegarde.
+- Liens directs : `/#locations` et `/#achats`.
+
 ## Organisation du code
 - `public/index.html` : la structure de la page
 - `public/styles.css` : l'apparence (style tableur, clair et sombre, iPhone)

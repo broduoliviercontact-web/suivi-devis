@@ -13,7 +13,8 @@ const readBody = (req) => new Promise((r) => { const c = []; req.on("data", (d) 
 const listen = (srv) => new Promise((r) => srv.listen(0, "127.0.0.1", () => r(srv.address().port)));
 
 // migrated=false simulates a database where supabase/migration-2.sql has not been run.
-export async function startServers({ migrated = true, password = "LGS" } = {}) {
+// readDelay: slows down reading the data (to reproduce a refresh that crosses a save).
+export async function startServers({ migrated = true, password = "LGS", readDelay = 0 } = {}) {
   const db = { devis: new Map(), offres: new Map(), ...(migrated ? { evenements: new Map() } : {}) };
   const files = new Map();
   let seq = null;
@@ -40,6 +41,7 @@ export async function startServers({ migrated = true, password = "LGS" } = {}) {
         else if (k.startsWith("data->>") && v.startsWith("lt.")) { const f = k.slice(7); list = list.filter((r) => r.data[f] != null && String(r.data[f]) < v.slice(3)); }
       }
       if (req.method === "GET") {
+        if (readDelay && !u.searchParams.get("id")) await new Promise((r) => setTimeout(r, readDelay));
         const order = u.searchParams.get("order") || "";
         if (order.startsWith("data->num")) list.sort((a, b) => (b.data.num || 0) - (a.data.num || 0));
         else list.sort((a, b) => (a.id < b.id ? -1 : 1));

@@ -33,6 +33,11 @@
     <div class="head-actions"><button class="primary" id="addBtn" type="button" disabled>+ Nouveau besoin</button></div>
   </header>
 
+  <nav class="spaces" aria-label="Partie du site">
+    <button type="button" id="spLoc" data-space="loc" aria-pressed="true"><span class="sp-k">Location</span> Événementielle</button>
+    <button type="button" id="spAch" data-space="ach" aria-pressed="false"><span class="sp-k">Achat</span> DTSE</button>
+  </nav>
+
   <div class="tabs" role="tablist" aria-label="Vues">
     <button type="button" role="tab" id="tabEv" data-view="events" aria-selected="true" aria-controls="viewEvents">Événements</button>
     <button type="button" role="tab" id="tabMem" data-view="memoire" aria-selected="false" aria-controls="viewMem" tabindex="-1">Mémoire des prix</button>
@@ -41,13 +46,7 @@
 
   <div class="view" id="viewEvents" role="tabpanel" aria-labelledby="tabEv">
     <div class="filters" id="filters" role="group" aria-label="Filtrer"></div>
-    <div class="legend">
-      <span><i class="dot s-prep"></i>À préparer</span>
-      <span><i class="dot s-aenv"></i>À envoyer</span>
-      <span><i class="dot s-env"></i>Envoyé, en attente de signature</span>
-      <span><i class="dot s-sig"></i>Signé, à payer</span>
-      <span><i class="dot s-pay"></i>Payé</span>
-    </div>
+    <div class="legend" id="legend"></div>
     <main id="list"><div class="empty-state">Chargement des devis…</div></main>
   </div>
 
@@ -56,12 +55,20 @@
       <div class="cal-nav"><button type="button" class="ghost sm" id="calPrev" aria-label="Mois précédent">‹</button><button type="button" class="ghost sm" id="calToday">Aujourd'hui</button><button type="button" class="ghost sm" id="calNext" aria-label="Mois suivant">›</button></div>
       <h2 class="cal-title" id="calTitle"></h2>
       <span class="cal-count" id="calCount"></span>
+      <div class="seg cal-filter" id="calFilter" role="group" aria-label="Afficher">
+        <button type="button" data-cf="tout">Tout</button><button type="button" data-cf="loc">Locations</button><button type="button" data-cf="liv">Livraisons</button>
+      </div>
     </div>
     <div id="calView"></div>
   </div>
 
   <div class="view" id="viewMem" role="tabpanel" aria-labelledby="tabMem" hidden>
-    <input class="search" id="memSearch" type="search" placeholder="Chercher : praticables, TSF, talkies…" aria-label="Chercher dans la mémoire">
+    <div class="mem-bar">
+      <input class="search" id="memSearch" type="search" placeholder="Chercher : praticables, TSF, talkies…" aria-label="Chercher dans la mémoire">
+      <div class="seg" id="memFilter" role="group" aria-label="Afficher">
+        <button type="button" data-mf="tout">Tout</button><button type="button" data-mf="loc">Locations</button><button type="button" data-mf="ach">Achats</button>
+      </div>
+    </div>
     <div id="memView"></div>
   </div>
 
@@ -86,13 +93,13 @@
     <div class="ev-preview" aria-hidden="true"><span class="tape" id="evPreview"></span></div>
     <p class="err" id="evMig" hidden>La base n'est pas encore à jour : seuls le nom et le style seront enregistrés. Exécute supabase/migration-2.sql dans Supabase pour les dates, le lieu et les notes.</p>
     <label>Nom<input id="evName" required placeholder="ex. Ouverture de la halle"></label>
-    <div class="grid2 ev-dates">
+    <div class="grid2 ev-dates" id="evDatesRow">
       <label>Date de début<input type="date" id="evD1"></label>
       <label>Date de fin <small>(si plusieurs jours)</small><input type="date" id="evD2"></label>
     </div>
-    <label>Lieu<input id="evLieu" placeholder="ex. Grandes Serres, Pantin"></label>
+    <label id="evLieuRow">Lieu<input id="evLieu" placeholder="ex. Grandes Serres, Pantin"></label>
     <label>Notes<textarea id="evNotes" placeholder="Contacts, horaires de montage, accès…"></textarea></label>
-    <p class="hint" style="margin:-6px 0 0;color:var(--muted);font-size:.82rem">Les événements sont classés par date. Sans date, celle écrite dans le nom est utilisée.</p>
+    <p class="hint" id="evSortHint" style="margin:-6px 0 0;color:var(--muted);font-size:.82rem">Les événements sont classés par date. Sans date, celle écrite dans le nom est utilisée.</p>
     <div class="opt"><span>Couleur</span><div class="swatches" id="evColors"></div></div>
     <div class="opt"><span>Style</span><div class="toggles" id="evToggles">
       <button type="button" class="tg" data-t="b" title="Gras" aria-label="Gras"><b>G</b></button>
@@ -118,7 +125,7 @@
     </div>
 
     <form id="baseForm" autocomplete="off" class="grid2">
-      <label>Événement<input id="fEvent" list="events" required placeholder="ex. Ouverture 6-8/11"></label>
+      <label><span id="fEventL">Événement</span><input id="fEvent" list="events" required placeholder="ex. Ouverture 6-8/11"><small class="f-hint" id="fEvHint" hidden>Un nom nouveau crée une catégorie d'achats (ex. Consommables, Outillage).</small></label>
       <label>Besoin<input id="fObjet" list="objets" required placeholder="ex. Praticables, talkies, sécu…"></label>
       <div class="kind-label full"><span>Type</span><div class="kind-seg" id="fKind" role="group" aria-label="Type">
         <button type="button" data-k="location">Location</button><button type="button" data-k="achat">Achat</button></div></div>

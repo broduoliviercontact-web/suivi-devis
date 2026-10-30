@@ -38,6 +38,19 @@ async function open(ctxOptions = { viewport: { width: 1240, height: 900 } }) {
 }
 const objets = (page) => page.$$eval(".obj", (els) => els.map((e) => e.textContent.trim()));
 const eventNames = (page) => page.$$eval(".ev-name", (els) => els.map((e) => e.textContent.trim()));
+// Waits for the proposal form after « Créer le besoin »; on failure says why (error shown, fiche state).
+async function waitOffer(page) {
+  try { await page.waitForSelector("#offerForm:not([hidden])", { timeout: 8000 }); }
+  catch (e) {
+    await page.screenshot({ path: "/tmp/claude-0/-home-claude/569f0a9a-91da-5b2b-8cd2-a5d7dbc6753b/scratchpad/offer-fail.png" }).catch(() => {});
+    throw new Error("formulaire de proposition absent : " + JSON.stringify(await page.evaluate(() => ({ err: document.getElementById("fErr").hidden ? null : document.getElementById("fErr").textContent, veil: !document.getElementById("veil").hidden, title: document.getElementById("pTitle").textContent, ev: document.getElementById("fEvent").value, obj: document.getElementById("fObjet").value, focus: document.activeElement && document.activeElement.id, discard: !!document.querySelector(".discard:not([hidden])") }))));
+  }
+}
+// Opens « Nouveau besoin » and waits until the fiche has placed the cursor (as a person would).
+async function newBesoin(page, sel = "#addBtn") {
+  await page.click(sel);
+  await page.waitForFunction(() => ["fEvent", "fObjet"].includes(document.activeElement && document.activeElement.id));
+}
 const focused = (page) => page.evaluate(() => { const e = document.activeElement; return e && (e.id || e.textContent.trim().slice(0, 40)); });
 
 before(async () => { browser = await chromium.launch(); });
@@ -58,7 +71,7 @@ describe("ordinateur", () => {
 
   test("événements classés par date, cases enregistrées", async () => {
     const page = await open();
-    assert.deepEqual(await eventNames(page), ["Ouverture de la halle", "Inauguration 5/12", "VOEUX DU MAIRE 06/01/27"]);
+    assert.deepEqual(await eventNames(page), ["Ouverture de la halle", "Inauguration 5/12"], "la partie Location ne montre que les locations");
     await page.click('.ck[data-id="d2"][data-k="envoye"]');
     await page.waitForTimeout(500);
     assert.equal(s.db.devis.get("d2").envoye, true);
@@ -68,11 +81,11 @@ describe("ordinateur", () => {
 
   test("créer un besoin et sa proposition", async () => {
     const page = await open();
-    await page.click("#addBtn");
+    await newBesoin(page);
     await page.fill("#fEvent", "ouverture de la halle"); // casse différente : même événement
     await page.fill("#fObjet", "Praticables");
     await page.click("#saveBtn");
-    await page.waitForSelector("#offerForm:not([hidden])");
+    await waitOffer(page);
     await page.fill("#oFour", "ASD"); await page.fill("#oMontant", "1 250,50");
     await page.click("#oSave");
     await page.waitForTimeout(800);
@@ -108,7 +121,7 @@ describe("ordinateur", () => {
     await page.fill("#evName", "Salon pro"); await page.fill("#evD1", "2026-11-20");
     await page.click("#evForm button[type=submit]");
     await page.waitForTimeout(800);
-    assert.deepEqual(await eventNames(page), ["Ouverture de la halle", "Salon pro", "Inauguration du parvis", "VOEUX DU MAIRE 06/01/27"]);
+    assert.deepEqual(await eventNames(page), ["Ouverture de la halle", "Salon pro", "Inauguration du parvis"]);
     const ev = [...s.db.evenements.values()].find((e) => e.nom === "Inauguration du parvis");
     assert.equal(ev.lieu, "Pantin"); assert.equal(ev.date, "2026-12-05");
     assert.equal(s.db.devis.get("d2").evenement, "Inauguration du parvis");
@@ -133,8 +146,9 @@ describe("ordinateur", () => {
     const page = await open();
     const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#exportCsv")]);
     const csv = fs.readFileSync(await dl.path(), "utf8");
-    assert.ok(csv.startsWith("﻿N°;Événement;"));
-    assert.ok(csv.includes("#001;Ouverture de la halle;2026-11-06 → 2026-11-08;Grandes Serres;Talkies;location;2026-11-05;09:00;2026-11-09;14:30;oui;"));
+    assert.ok(csv.startsWith("\ufeffN°;Partie;Événement / catégorie;"));
+    assert.ok(csv.includes("#001;Location Événementielle;Ouverture de la halle;2026-11-06 → 2026-11-08;Grandes Serres;Talkies;2026-11-05;09:00;2026-11-09;14:30;oui;"));
+    assert.ok(csv.includes("#003;Achat DTSE;VOEUX DU MAIRE 06/01/27;;;Gaffer;;;;;;;;;;;"), "les achats aussi, avec leurs propres étapes");
     assert.ok(csv.includes(";TSF;V1;380;"));
   });
 
@@ -181,6 +195,7 @@ describe("ordinateur", () => {
 describe("achats", () => {
   test("livraison sans reprise : fiche, tableau et calendrier", async () => {
     const page = await open();
+    await page.click("#spAch");
     await page.click('[data-open="d3"] >> nth=0');
     assert.equal(await page.textContent("#whenInL"), "Livraison (facultatif)");
     assert.ok(await page.isHidden("#whenOut"), "pas de reprise pour un achat");
@@ -191,6 +206,7 @@ describe("achats", () => {
     await page.click("#closeBtn");
     assert.match(await page.textContent('.row:has([data-open="d3"]) .dates'), /^Livraison mer 4 nov\s10h30$/u);
     // a location switched to purchase keeps only the delivery
+    await page.click("#spLoc");
     await page.click('[data-open="d1"] >> nth=0'); await page.click('#fKind [data-k="achat"]');
     assert.ok(await page.isHidden("#whenOut"));
     await page.click("#saveBtn"); await page.waitForTimeout(500); await page.click("#closeBtn");
@@ -202,6 +218,99 @@ describe("achats", () => {
     const bar = await page.textContent('.cbar[data-open="d3"]');
     assert.match(bar, /Livraison 10h30/); assert.doesNotMatch(bar, /Reprise/);
     assert.equal(await page.locator('.cbar[data-open="d1"]').count(), 1, "une seule case, pas une barre sur plusieurs jours");
+  });
+});
+
+describe("deux parties : Location Événementielle / Achat DTSE", () => {
+  test("chaque partie a ses besoins, ses étapes et ses filtres", async () => {
+    const page = await open();
+    assert.equal(await page.getAttribute("#spLoc", "aria-pressed"), "true");
+    assert.ok(!(await objets(page)).includes("Gaffer"));
+    await page.click("#spAch");
+    assert.equal(await page.textContent("#tabEv"), "Achats");
+    assert.deepEqual(await objets(page), ["Gaffer"]);
+    assert.deepEqual(await page.$$eval(".row.th >> nth=0", (r) => [...r[0].children].slice(3, 7).map((c) => c.textContent)), ["Devis demandé", "Commandé", "Livré", "Payé"]);
+    assert.deepEqual(await page.$$eval("#filters button", (b) => b.map((x) => x.firstChild.textContent)), ["Tous", "Devis en attente", "À livrer", "À payer", "Factures en attente"]);
+    await page.click('.ck[data-id="d3"][data-k="commande"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").commande, true);
+    assert.equal(await page.textContent('#filters [data-f="livrer"] .n'), "1");
+    await page.reload(); await page.waitForSelector("[data-open]");
+    assert.equal(await page.getAttribute("#spAch", "aria-pressed"), "true", "la partie choisie est retenue");
+    assert.match(page.url(), /#achats$/);
+  });
+
+  test("Nouveau besoin : réglé sur la partie, un nom nouveau crée une catégorie", async () => {
+    const page = await open();
+    await page.click("#spAch"); await newBesoin(page);
+    assert.equal(await page.getAttribute('#fKind [data-k="achat"]', "aria-pressed"), "true");
+    assert.equal(await page.textContent("#fEventL"), "Événement ou catégorie");
+    await page.fill("#fEvent", "Consommables"); await page.fill("#fObjet", "Gaffer noir 50 mm");
+    await page.click("#saveBtn"); await waitOffer(page);
+    await page.click("#oCancel"); await page.click("#closeBtn"); await page.waitForTimeout(600);
+    const cat = [...s.db.evenements.entries()].find(([, e]) => e.nom === "Consommables");
+    assert.ok(cat && cat[1].kind === "categorie");
+    assert.equal([...s.db.devis.values()].find((d) => d.objet === "Gaffer noir 50 mm").eventId, cat[0]);
+    assert.deepEqual(await eventNames(page), ["Consommables", "VOEUX DU MAIRE 06/01/27"], "catégories d'abord, puis événements");
+    assert.ok(await page.$eval('.ev-name >> nth=0', (e) => e.classList.contains("is-cat")));
+    // une location ne peut pas aller dans une catégorie
+    await page.click("#spLoc"); await newBesoin(page);
+    await page.fill("#fEvent", "Consommables"); await page.fill("#fObjet", "Talkies");
+    await page.click("#saveBtn");
+    assert.match(await page.textContent("#fErr"), /catégorie d'achats/);
+    await page.click("#closeBtn"); await page.click('[data-d="drop"]');
+    // et une catégorie vide se crée depuis la partie Achat
+    await page.click("#spAch"); await page.click('[data-newev="cat"]');
+    assert.equal(await page.textContent("#evTitle"), "Nouvelle catégorie");
+    assert.ok(await page.isHidden("#evDatesRow"));
+    await page.fill("#evName", "Outillage"); await page.click("#evForm button[type=submit]"); await page.waitForTimeout(500);
+    assert.deepEqual(await eventNames(page), ["Consommables", "Outillage", "VOEUX DU MAIRE 06/01/27"]);
+  });
+
+  test("l'étiquette ACHAT / LOCATION fait changer de partie, avec Annuler", async () => {
+    const page = await open();
+    await page.click('[data-kind="d2"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d2").type, "achat");
+    assert.ok(!(await objets(page)).includes("Sanitaires"));
+    assert.match(await page.textContent("#toastText"), /passé dans « Achat DTSE »/);
+    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d2").type, "location");
+    assert.ok((await objets(page)).includes("Sanitaires"));
+  });
+
+  test("calendrier commun : Tout / Locations / Livraisons", async () => {
+    s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07", hDebut: "08:00" } } });
+    const page = await open();
+    await page.click("#tabCal");
+    for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
+      await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
+    await page.click('[data-cf="tout"]');
+    assert.equal(await page.textContent("#calCount"), "1 location · 1 livraison ce mois-ci");
+    await page.click('[data-cf="liv"]');
+    assert.equal(await page.locator('.cbar[data-open="d1"]').count(), 0);
+    assert.equal(await page.locator('.cbar[data-open="d3"]').count(), 1);
+    await page.click('[data-cf="loc"]');
+    assert.equal(await page.locator('.cbar[data-open="d3"]').count(), 0);
+    await page.click("#spAch");
+    assert.ok(await page.isVisible("#viewCal"), "le calendrier reste ouvert en changeant de partie");
+  });
+});
+
+describe("synchronisation", () => {
+  test("un rafraîchissement lent ne fait jamais disparaître un besoin qu'on vient de créer", async () => {
+    await s.close(); s = await startServers({ readDelay: 400 }); s.seed(SEED);
+    const page = await open();
+    for (let i = 0; i < 4; i++) {
+      s.db.devis.get("d2").envoye = !s.db.devis.get("d2").envoye; // quelqu'un d'autre coche une case
+      await page.evaluate(() => { refresh(); }); // une lecture part (sans attendre sa fin)…
+      await newBesoin(page); await page.fill("#fEvent", "Ouverture de la halle"); await page.fill("#fObjet", "Test " + i);
+      await page.click("#saveBtn"); // …pendant qu'on crée un besoin
+      await waitOffer(page);
+      await page.waitForTimeout(900);
+      assert.ok(await page.isVisible("#veil"), "la fiche reste ouverte");
+      assert.match(await page.textContent("#pTitle"), new RegExp("Test " + i));
+      await page.click("#oCancel"); await page.click("#closeBtn");
+      assert.ok((await objets(page)).includes("Test " + i), "le nouveau besoin est dans le tableau");
+    }
   });
 });
 

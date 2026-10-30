@@ -1,18 +1,32 @@
-const STEPS=[["aEnvoyer","À envoyer"],["envoye","Envoyé"],["signe","Signé"],["paye","Payé"]];
+/* Two parts: « Location Événementielle » (type location) and « Achat DTSE » (type achat).
+   Each has its own steps, filters and legend; the calendar, price memory, bin and export are shared. */
+const SPACES={
+  loc:{type:"location",nom:"Location Événementielle",tab:"Événements",
+    steps:[["aEnvoyer","À envoyer"],["envoye","Envoyé"],["signe","Signé"],["paye","Payé"]],
+    filters:[["tous","Tous"],["relancer","À relancer"],["payer","À payer"],["factures","Factures en attente"]],
+    legend:[["s-prep","À préparer"],["s-aenv","À envoyer"],["s-env","Envoyé, en attente de signature"],["s-sig","Signé, à payer"],["s-pay","Payé"]]},
+  ach:{type:"achat",nom:"Achat DTSE",tab:"Achats",
+    steps:[["demande","Devis demandé","Demandé"],["commande","Commandé"],["livre","Livré"],["paye","Payé"]],
+    filters:[["tous","Tous"],["attente","Devis en attente"],["livrer","À livrer"],["apayer","À payer"],["factures","Factures en attente"]],
+    legend:[["s-prep","À préparer"],["s-aenv","Devis demandé"],["s-env","Commandé, à livrer"],["s-sig","Livré, à payer"],["s-pay","Payé"]]},
+};
 const FACT=[["factSB","SB"],["factRecue","Reçue"],["factEnvoyee","Envoyée"]];
-const FILTERS=[["tous","Tous"],["relancer","À relancer"],["payer","À payer"],["factures","Factures en attente"]];
+const spaceOfType=t=>t==="achat"?"ach":"loc";
+let space="loc";
+try{space=localStorage.getItem("devis-space")==="ach"?"ach":"loc"}catch(_){}
+if(/^#achat/i.test(location.hash))space="ach";else if(/^#location/i.test(location.hash))space="loc";
 const CHECK='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PEN='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.8 2.7l2.5 2.5-7.9 7.9-3.1.6.6-3.1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 const CLIP='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5L5.2 9.8a1.6 1.6 0 002.3 2.3l5.6-5.6a3 3 0 00-4.3-4.3L3.2 7.8a4.4 4.4 0 006.2 6.2l4.1-4.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 const UPLOAD_ERR={too_large:"Le fichier dépasse 20 Mo. Envoie une version plus légère.",unsupported_type:"Ce type de fichier n'est pas accepté. Exporte le devis en PDF ou en image.",quota_or_state:"L'espace de stockage est plein. Retire d'anciens fichiers.",rate_limited:"Trop d'envois d'un coup. Réessaie dans quelques secondes.",upstream_auth:"Session expirée. Recharge la page et reconnecte-toi."};
 
-let db=null, assets=null, canWrite=true, rows=[], offres=[], filter="tous", view="events";
+let db=null, assets=null, canWrite=true, rows=[], offres=[], filters={loc:"tous",ach:"tous"}, view="events", calFilter="tout", memFilter="tout";
 const openRows=new Set();
 let fiche=null;      // null | {id} | {id:null} for a new besoin
 let oMode=null;      // null | {kind:"add"|"version"|"edit", offre?}
 let gotDevis=false;
 let events=[], trash={devis:[],offres:[],evenements:[]}, evTable=true, EV=new Map(), lastSig="", rawData=null;
-try{filter=localStorage.getItem("devis-filter")||"tous";view=localStorage.getItem("devis-view")||"events"}catch(e){}
+try{filters.loc=localStorage.getItem("devis-filter")||"tous";filters.ach=localStorage.getItem("devis-filter-ach")||"tous";view=localStorage.getItem("devis-view")||"events";calFilter=localStorage.getItem("devis-calf")||"tout";memFilter=localStorage.getItem("devis-memf")||"tout"}catch(e){}
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -83,25 +97,35 @@ function supplierGroups(id){
 function retained(id){return offersOf(id).find(o=>o.retenue)}
 
 function status(d){
+  if(kindOf(d)==="achat"){
+    if(d.paye) return ["s-pay","Payé"];
+    if(d.livre) return ["s-sig","Livré, à payer"];
+    if(d.commande) return ["s-env","Commandé, à livrer"];
+    if(d.demande) return ["s-aenv","Devis demandé"];
+    return ["s-prep","À préparer"];
+  }
   if(d.paye) return ["s-pay","Payé"];
   if(d.signe) return ["s-sig","Signé, à payer"];
   if(d.envoye) return ["s-env","Envoyé, pas signé"];
   if(d.aEnvoyer) return ["s-aenv","À envoyer"];
   return ["s-prep","À préparer"];
 }
-const match={
-  tous:()=>true,
-  relancer:d=>d.envoye&&!d.signe,
-  payer:d=>d.signe&&!d.paye,
-  factures:d=>(d.signe||d.paye)&&!d.factRecue
+const MATCH={
+  loc:{tous:()=>true,relancer:d=>d.envoye&&!d.signe,payer:d=>d.signe&&!d.paye,factures:d=>(d.signe||d.paye)&&!d.factRecue},
+  ach:{tous:()=>true,attente:d=>d.demande&&!d.commande,livrer:d=>d.commande&&!d.livre,apayer:d=>d.livre&&!d.paye,factures:d=>(d.commande||d.paye)&&!d.factRecue},
 };
+const inSpace=d=>spaceOfType(d.type)===space;
+const spaceRows=()=>rows.filter(inSpace);
+const curFilter=()=>MATCH[space][filters[space]]?filters[space]:"tous";
 
 /* ---------- events view ---------- */
 function renderFilters(){
-  $("filters").innerHTML=FILTERS.map(([k,l])=>`<button type="button" data-f="${k}" aria-pressed="${filter===k}">${l}<span class="n">${rows.filter(match[k]).length}</span></button>`).join("");
+  const sr=spaceRows(), f=curFilter();
+  $("filters").innerHTML=SPACES[space].filters.map(([k,l])=>`<button type="button" data-f="${k}" aria-pressed="${f===k}">${l}<span class="n">${sr.filter(MATCH[space][k]).length}</span></button>`).join("");
+  $("legend").innerHTML=SPACES[space].legend.map(([c,l])=>`<span><i class="dot ${c}"></i>${l}</span>`).join("");
 }
-function ck(d,key,label,fact){
-  return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?'<span class="lf">Facture </span>':""}${label}</span></button>`;
+function ck(d,key,label,fact,short){
+  return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(fact?"Facture "+label:label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?'<span class="lf">Facture </span>':""}${short||label}</span></button>`;
 }
 // Text with clickable web links (escaped first)
 const URL_RE=/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
@@ -146,46 +170,50 @@ function renderEvents(){
   renderFilters();
   const list=$("list");
   if(!gotDevis) return;
-  const shown=rows.filter(match[filter]);
+  const ach=space==="ach", SP=SPACES[space], f=curFilter(), sr=spaceRows();
+  const shown=sr.filter(MATCH[space][f]);
   const groups=new Map();
   for(const d of [...shown].sort((a,b)=>a.num-b.num)){const k=evKey(d);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(d)}
-  if(filter==="tous")for(const e of EV.values())if(!e.virtual&&!groups.has(e._id))groups.set(e._id,[]);
-  const newEv=canWrite?`<button type="button" class="new-ev" data-newev="1">+ Nouvel événement</button>`:"";
-  if(!groups.size){list.innerHTML=(rows.length?`<div class="empty-state">Rien dans ce filtre. Tout est à jour.</div>`:`<div class="empty-state">Aucun devis pour l'instant. Ajoute le premier avec « + Nouveau besoin ».</div>`)+(filter==="tous"?newEv:"");return}
-  const ordered=[...groups].map(([k,items])=>[EV.get(k)||{_id:k,nom:k},items]).sort((a,b)=>evTime(a[0])-evTime(b[0])||String(a[0].nom).localeCompare(String(b[0].nom),"fr"));
+  // empty fiches: events in Location, categories in Achat
+  if(f==="tous")for(const e of EV.values())if(!e.virtual&&!groups.has(e._id)&&isCat(e)===ach)groups.set(e._id,[]);
+  const newEv=canWrite?(ach?`<button type="button" class="new-ev" data-newev="cat">+ Nouvelle catégorie</button>`:`<button type="button" class="new-ev" data-newev="ev">+ Nouvel événement</button>`):"";
+  if(!groups.size){list.innerHTML=(sr.length?`<div class="empty-state">Rien dans ce filtre. Tout est à jour.</div>`:`<div class="empty-state">${ach?"Aucun achat pour l'instant. Ajoute le premier avec « + Nouveau besoin »":"Aucun devis pour l'instant. Ajoute le premier avec « + Nouveau besoin »"}.</div>`)+(f==="tous"?newEv:"");return}
+  // Achat: categories first (A→Z), then events by date. Location: events by date.
+  const ordered=[...groups].map(([k,items])=>[EV.get(k)||{_id:k,nom:k},items]).sort((a,b)=>(isCat(b[0])-isCat(a[0]))||(isCat(a[0])?0:evTime(a[0])-evTime(b[0]))||String(a[0].nom).localeCompare(String(b[0].nom),"fr"));
   let html="";
   for(const [ev,items] of ordered){
-    const all=rows.filter(r=>evKey(r)===ev._id);
-    const sig=all.filter(r=>r.signe).length, pay=all.filter(r=>r.paye).length;
+    const all=sr.filter(r=>evKey(r)===ev._id), cat=isCat(ev);
+    const sig=all.filter(r=>ach?r.commande:r.signe).length, pay=all.filter(r=>r.paye).length;
+    const unit=ach?"achat":"besoin", done=ach?"commandé":"signé";
     const tot=all.map(r=>retained(r._id)).filter(o=>o&&o.montant!=null).reduce((s,o)=>s+o.montant,0);
     const st=styleOf(ev), when=fmtEvDates(ev);
     const meta=[when,ev.lieu].filter(Boolean).map(esc).join(" · ");
-    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche de l'événement" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} besoin${all.length>1?"s":""} · ${sig} signé${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
-    if(!items.length){html+=`<div class="sheet ev-empty">Aucun besoin pour l'instant.${canWrite?` <button type="button" class="linkish" data-addev="${esc(ev.nom)}">Ajouter le premier</button>`:""}</div></section>`;continue}
+    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}${cat?" is-cat":""}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche ${cat?"de la catégorie":"de l'événement"}" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} ${unit}${all.length>1?"s":""} · ${sig} ${done}${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
+    if(!items.length){html+=`<div class="sheet ev-empty">${ach?"Aucun achat":"Aucun besoin"} pour l'instant.${canWrite?` <button type="button" class="linkish" data-addev="${esc(ev.nom)}">Ajouter le premier</button>`:""}</div></section>`;continue}
     html+=`<div class="sheet">`;
-    html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${STEPS.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
+    html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${SP.steps.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
       html+=`<div class="row"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
-        `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer en "+(kindOf(d)==="achat"?"location":"achat"):""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
+        `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer dans « "+SPACES[kindOf(d)==="achat"?"loc":"ach"].nom+" »":""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
         (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,d.hDebut,d.hFin,true)}</span>`:kindOf(d)==="achat"&&d.debut?`<span class="dates">${fmtLiv(d,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
-        STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
+        SP.steps.map(([k,l,sh])=>ck(d,k,l,false,sh)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
       if(openRows.has(d._id)&&supplierGroups(d._id).length)html+=subRows(d);
     }
     html+=`</div></section>`;
   }
-  list.innerHTML=html+(filter==="tous"?newEv:"");
+  list.innerHTML=html+(f==="tous"?newEv:"");
 }
 
 /* ---------- memory view ---------- */
 // Latest version of each supplier's proposal on each besoin, newest first
 function memEntries(){
   const out=[];
-  for(const d of rows) for(const g of supplierGroups(d._id)) out.push({o:g.latest,d,retenue:g.retenue});
+  for(const d of rows){if(memFilter!=="tout"&&spaceOfType(d.type)!==memFilter)continue;for(const g of supplierGroups(d._id)) out.push({o:g.latest,d,retenue:g.retenue})}
   return out.sort((a,b)=>String(b.o.cree||"").localeCompare(String(a.o.cree||"")));
 }
 function renderMemory(){
@@ -204,7 +232,7 @@ function renderMemory(){
     const prices=g.items.map(e=>e.o.montant).filter(n=>n!=null);
     const fours=new Set(g.items.map(e=>keyOf(e.o.fournisseur))).size;
     html+=`<section class="event"><div class="ev-head"><span class="tape mem-tape ${evClass({c:"grey"})}">${esc(g.name)}</span><span class="ev-count">${g.items.length} proposition${g.items.length>1?"s":""} · ${fours} fournisseur${fours>1?"s":""}${prices.length?" · de "+eur(Math.min(...prices))+" à "+eur(Math.max(...prices)):""}</span></div>`+
-      `<div class="sheet mem-wrap"><table class="mem-table"><thead><tr><th>Fournisseur</th><th>Montant</th><th>Ce qui est loué</th><th>Événement</th><th></th></tr></thead><tbody>`;
+      `<div class="sheet mem-wrap"><table class="mem-table"><thead><tr><th>Fournisseur</th><th>Montant</th><th>Détail</th><th>Événement / catégorie</th><th></th></tr></thead><tbody>`;
     for(const e of g.items){
       html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${linkifyShort(e.o.detail||"")}</td>`+
         `<td><button type="button" class="linkish" data-open="${esc(e.d._id)}">${esc(evOf(e.d))} · ${pad(e.d.num)}</button><div class="notice">${day(e.o.cree)}</div></td>`+
@@ -216,15 +244,35 @@ function renderMemory(){
 }
 
 function renderLists(){
-  const ev=[...EV.values()].filter(e=>e.nom&&e.nom!=="Sans événement").sort((a,b)=>evTime(a)-evTime(b)).map(e=>e.nom);
+  // achats can go to a category or an event; locations only to an event
+  const ev=[...EV.values()].filter(e=>e.nom&&e.nom!=="Sans événement"&&(fKind==="achat"||!isCat(e))).sort((a,b)=>(isCat(b)-isCat(a))||evTime(a)-evTime(b)).map(e=>e.nom);
   $("events").innerHTML=ev.map(e=>`<option value="${esc(e)}">`).join("");
   const ob=new Map();rows.forEach(r=>{if(r.objet&&!ob.has(keyOf(r.objet)))ob.set(keyOf(r.objet),r.objet)});
   $("objets").innerHTML=[...ob.values()].map(e=>`<option value="${esc(e)}">`).join("");
   const fo=new Map();offres.forEach(o=>{if(o.fournisseur&&!fo.has(keyOf(o.fournisseur)))fo.set(keyOf(o.fournisseur),o.fournisseur)});
   $("fournisseurs").innerHTML=[...fo.values()].map(e=>`<option value="${esc(e)}">`).join("");
 }
+function paintSpace(){
+  for(const [id,k] of [["spLoc","loc"],["spAch","ach"]])$(id).setAttribute("aria-pressed",space===k);
+  $("tabEv").textContent=SPACES[space].tab;
+  document.title=`${SPACES[space].nom} · Suivi des devis`;
+  document.querySelectorAll("#calFilter [data-cf]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.cf===calFilter));
+  document.querySelectorAll("#memFilter [data-mf]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mf===memFilter));
+}
+function setSpace(k){
+  if(k===space)return;
+  space=k;try{localStorage.setItem("devis-space",k)}catch(_){}
+  try{history.replaceState(null,"",k==="ach"?"#achats":"#locations")}catch(_){}
+  if(view==="corbeille")view="events";
+  render();
+}
+document.querySelector(".spaces").addEventListener("click",e=>{const b=e.target.closest("[data-space]");if(b)setSpace(b.dataset.space)});
+window.addEventListener("hashchange",()=>{if(/^#achat/i.test(location.hash))setSpace("ach");else if(/^#location/i.test(location.hash))setSpace("loc")});
+$("calFilter").addEventListener("click",e=>{const b=e.target.closest("[data-cf]");if(!b)return;calFilter=b.dataset.cf;try{localStorage.setItem("devis-calf",calFilter)}catch(_){}paintSpace();renderCalendar()});
+$("memFilter").addEventListener("click",e=>{const b=e.target.closest("[data-mf]");if(!b)return;memFilter=b.dataset.mf;try{localStorage.setItem("devis-memf",memFilter)}catch(_){}paintSpace();renderMemory()});
 function render(){
   buildEvents();
+  paintSpace();
   if(!["events","memoire","calendrier","corbeille"].includes(view))view="events";
   $("tabEv").setAttribute("aria-selected",view==="events");$("tabMem").setAttribute("aria-selected",view==="memoire");$("tabCal").setAttribute("aria-selected",view==="calendrier");
   {const cur={events:"tabEv",memoire:"tabMem",calendrier:"tabCal"}[view]||"tabEv";for(const t of TABS)$(t).tabIndex=t===cur?0:-1}
@@ -238,7 +286,7 @@ function render(){
 /* ---------- writes ---------- */
 const queues={};
 function write(id,fn){
-  pending++;
+  pending++;writeGen++;
   queues[id]=(queues[id]||Promise.resolve()).then(fn).catch(e=>{
     if(e&&e.code==="login")return;
     lastSig=""; // show the server's state again on the next refresh
@@ -252,7 +300,7 @@ const dropAsset=id=>{if(id&&assets)assets.delete(id).catch(()=>{})};
 /* ---------- page events ---------- */
 $("filters").addEventListener("click",e=>{
   const b=e.target.closest("[data-f]");if(!b)return;
-  filter=b.dataset.f;try{localStorage.setItem("devis-filter",filter)}catch(_){}
+  filters[space]=b.dataset.f;try{localStorage.setItem(space==="ach"?"devis-filter-ach":"devis-filter",b.dataset.f)}catch(_){}
   render();
 });
 /* ---------- keyboard ----------
@@ -315,7 +363,8 @@ $("list").addEventListener("click",e=>{
   if(en&&canWrite)return openRename(en.dataset.ev);
   const ad=e.target.closest("[data-addev]");
   if(ad)return openFiche(null,ad.dataset.addev);
-  if(e.target.closest("[data-newev]")&&canWrite)openRename(null);
+  const ne=e.target.closest("[data-newev]");
+  if(ne&&canWrite)openRename(null,ne.dataset.newev==="cat");
 });
 
 /* ---------- edit an event: name + look (stored on each of its besoins as evStyle) ---------- */
@@ -337,6 +386,7 @@ function buildEvents(){
   }
   EV=m;
 }
+const isCat=e=>!!e&&e.kind==="categorie";
 const evObj=r=>EV.get(evKey(r))||{_id:evKey(r),nom:(r.evenement||"Sans événement").trim(),virtual:true};
 const evOf=r=>evObj(r).nom||"Sans événement";
 const styleOf=ev=>({...defStyle(),...((ev&&ev.style)||{})});
@@ -364,16 +414,19 @@ function paintDraft(){
   document.querySelectorAll("#evToggles .tg").forEach(b=>b.setAttribute("aria-pressed",!!draft[b.dataset.t]));
   document.querySelectorAll("#evSizes button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.z===draft.z));
 }
-function openRename(id){
+let renamingCat=false;
+function openRename(id,newCat){
   const ev=id?EV.get(id):null;
   if(id&&!ev)return;
-  renaming=ev?ev._id:"";draft=styleOf(ev);
+  renaming=ev?ev._id:"";draft=styleOf(ev);renamingCat=ev?isCat(ev):!!newCat;
   const n=ev?rows.filter(r=>evKey(r)===ev._id).length:0;
-  $("evTitle").textContent=ev?"Fiche de l'événement":"Nouvel événement";
+  $("evTitle").textContent=renamingCat?(ev?"Fiche de la catégorie":"Nouvelle catégorie"):(ev?"Fiche de l'événement":"Nouvel événement");
+  $("evDatesRow").hidden=renamingCat;$("evLieuRow").hidden=renamingCat;$("evSortHint").hidden=renamingCat;
+  $("evName").placeholder=renamingCat?"ex. Consommables":"ex. Ouverture de la halle";
   $("evName").value=ev&&ev.nom!=="Sans événement"?ev.nom:"";
   const guess=ev&&!ev.date&&isFinite(evDate(ev.nom))?isoOf(new Date(evDate(ev.nom))):"";
   $("evD1").value=ev?.date||guess;$("evD2").value=ev?.dateFin||"";$("evLieu").value=ev?.lieu||"";$("evNotes").value=ev?.notes||"";
-  $("evHint").textContent=ev?(n?`${n} besoin${n>1?"s":""} dans cet événement.`:"Aucun besoin dans cet événement."):"";
+  $("evHint").textContent=ev?(n?`${n} ${renamingCat?"achat":"besoin"}${n>1?"s":""} dans ${renamingCat?"cette catégorie":"cet événement"}.`:`${renamingCat?"Aucun achat dans cette catégorie":"Aucun besoin dans cet événement"}.`):"";
   $("evDel").hidden=!ev||ev.virtual||n>0;$("evDel").textContent="Supprimer l'événement";$("evDel").dataset.armed="";
   $("evErr").hidden=true;
   $("evMig").hidden=evTable;
@@ -397,16 +450,18 @@ $("evForm").addEventListener("submit",e=>{
   if(date&&dateFin&&dateFin<date)return evErr("La date de fin doit être après la date de début.");
   const ev=renaming?EV.get(renaming):null;
   const other=evByName(nom);
-  if(other&&(!ev||other._id!==ev._id))return evErr("Un autre événement porte déjà ce nom.");
+  if(other&&(!ev||other._id!==ev._id))return evErr(`${isCat(other)?"Une catégorie":"Un événement"} porte déjà ce nom.`);
   const style={...draft};
   if(!evTable){
     // Database not updated yet: only the name and the look can be saved, on each besoin as before.
-    if(!ev)return evErr("Pour créer un événement vide, la base doit d'abord être mise à jour (supabase/migration-2.sql).");
+    if(!ev)return evErr(`Pour créer ${renamingCat?"une catégorie":"un événement vide"}, la base doit d'abord être mise à jour (supabase/migration-2.sql).`);
     for(const r of rows.filter(r=>evKey(r)===ev._id)){const patch={evenement:nom,evStyle:style,eventId:ev._id};Object.assign(r,patch);write(r._id,()=>api("devis",r._id,"update",patch))}
     closeRename();render();return;
   }
-  const id=ev?ev._id:"ev-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  const doc={nom,date,dateFin,lieu:$("evLieu").value.trim(),notes:$("evNotes").value.trim(),style,cree:(ev&&ev.cree)||new Date().toISOString()};
+  const id=ev?ev._id:(renamingCat?"cat-":"ev-")+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const doc=renamingCat?{nom,kind:"categorie",notes:$("evNotes").value.trim(),style,cree:(ev&&ev.cree)||new Date().toISOString()}
+    :{nom,date,dateFin,lieu:$("evLieu").value.trim(),notes:$("evNotes").value.trim(),style,cree:(ev&&ev.cree)||new Date().toISOString()};
+  if(!ev&&renamingCat)doc.style={...defStyle(),...style};
   const i=events.findIndex(x=>x._id===id);if(i>=0)events[i]={_id:id,...doc};else events.push({_id:id,...doc});
   write(id,()=>api("evenements",id,"set",doc));
   for(const r of rows.filter(r=>evKey(r)===id&&(r.eventId!==id||r.evenement!==nom))){
@@ -420,7 +475,7 @@ $("evDel").onclick=()=>{
   const id=renaming,ev=EV.get(id);closeRename();
   events=events.filter(x=>x._id!==id);render();
   write(id,()=>api("evenements",id,"delete"));
-  toast(`Événement « ${ev?ev.nom:""} » mis à la corbeille.`,()=>restoreItem("evenements",id));
+  toast(`${isCat(ev)?"Catégorie":"Événement"} « ${ev?ev.nom:""} » mis${isCat(ev)?"e":""} à la corbeille.`,()=>restoreItem("evenements",id));
 };
 $("addBtn").onclick=()=>openFiche(null);
 
@@ -445,6 +500,10 @@ let fKind="location";
 function paintKind(){
   document.querySelectorAll("#fKind button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===fKind));
   document.querySelectorAll("#baseForm .loc-only").forEach(l=>l.hidden=fKind!=="location");
+  $("fEventL").textContent=fKind==="achat"?"Événement ou catégorie":"Événement";
+  $("fEvHint").hidden=fKind!=="achat"||!evTable;
+  $("fEvent").placeholder=fKind==="achat"?"ex. Consommables, ou un événement":"ex. Ouverture 6-8/11";
+  renderLists();
   // a purchase is delivered once and never taken back: one date and time, no pickup
   $("whenInL").textContent=fKind==="achat"?"Livraison (facultatif)":"Arrivée du matériel";
   $("fDebut").setAttribute("aria-label",fKind==="achat"?"Date de livraison":"Date d'arrivée");
@@ -455,8 +514,9 @@ $("list").addEventListener("click",e=>{
   const t=e.target.closest("[data-kind]");if(!t||!canWrite)return;
   e.stopPropagation();
   const d=devisById(t.dataset.kind);if(!d)return;
-  const type=kindOf(d)==="achat"?"location":"achat";
+  const before=d.type||"location", type=kindOf(d)==="achat"?"location":"achat";
   d.type=type;write(d._id,()=>api("devis",d._id,"update",{type}));render();
+  toast(`${pad(d.num)} ${d.objet||""} est passé dans « ${SPACES[spaceOfType(type)].nom} ».`,()=>{d.type=before;write(d._id,()=>api("devis",d._id,"update",{type:before}));render()});
 },true);
 
 /* ---------- calendrier des locations ---------- */
@@ -465,7 +525,7 @@ try{const m=/^(\d{4})-(\d{2})$/.exec(localStorage.getItem("devis-cal")||"");if(m
 const isoOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const dayOf=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?new Date(+m[1],+m[2]-1,+m[3]):null};
 function locations(){
-  return rows.filter(r=>kindOf(r)==="location"?(r.debut||r.fin):r.debut).map(r=>{
+  return rows.filter(r=>kindOf(r)==="location"?(calFilter!=="liv"&&(r.debut||r.fin)):(calFilter!=="loc"&&r.debut)).map(r=>{
     const liv=kindOf(r)==="achat";
     let a=dayOf(r.debut||r.fin), b=liv?a:dayOf(r.fin||r.debut); if(b<a)[a,b]=[b,a];
     const ret=retained(r._id), g=supplierGroups(r._id);
@@ -513,7 +573,7 @@ function renderCalendar(){
   html+=`</div>`;
   // phone: chronological list for the month
   html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.liv?`<span class="cl-hours"><span class="hb"><i>Livraison</i>${l.r.hDebut?" "+esc(fmtH(l.r.hDebut)):""}</span></span>`:l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ni livraison ce mois-ci.</div>`}</div>`;
-  const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num);
+  const undated=calFilter==="liv"?[]:rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num);
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;
 }
@@ -526,14 +586,15 @@ function openFiche(id,prefillEvent){
   if(!id&&!canWrite)return;
   fiche={id:id||null};oMode=null;
   $("fEvent").value=d?(evOf(d)==="Sans événement"?"":evOf(d)):(prefillEvent||"");$("fObjet").value=d?.objet||"";
-  fKind=d?kindOf(d):"location";$("fDebut").value=d?.debut||"";$("fFin").value=d?.fin||"";$("fHDebut").value=d?.hDebut||"";$("fHFin").value=d?.hFin||"";paintKind();
+  fKind=d?kindOf(d):SPACES[space].type;$("fDebut").value=d?.debut||"";$("fFin").value=d?.fin||"";$("fHDebut").value=d?.hDebut||"";$("fHFin").value=d?.hFin||"";paintKind();
   [$("fEvent"),$("fObjet"),$("fDebut"),$("fFin"),$("fHDebut"),$("fHFin"),$("saveBtn"),...document.querySelectorAll("#fKind button")].forEach(x=>x.disabled=!canWrite);
   $("saveBtn").textContent=d?"Enregistrer":"Créer le besoin";
   $("delBtn").hidden=!d||!canWrite;$("delBtn").textContent="Supprimer ce besoin";$("delBtn").dataset.armed="";
   $("fErr").hidden=true;
   $("veil").hidden=false;document.body.style.overflow="hidden";modalOpened($("veil"));
   renderFiche();hideDiscard();snapshotFiche();
-  setTimeout(()=>{if(!d)$(prefillEvent?"fObjet":"fEvent").focus();else $("closeBtn").focus()},30);
+  // initial focus, unless the person already clicked into a field
+  setTimeout(()=>{if($("veil").contains(document.activeElement)&&document.activeElement.matches("input,textarea"))return;if(!d)$(prefillEvent?"fObjet":"fEvent").focus();else $("closeBtn").focus()},30);
 }
 function closeFiche(){$("veil").hidden=true;document.body.style.overflow="";fiche=null;oMode=null;hideDiscard();modalClosed()}
 
@@ -624,21 +685,35 @@ $("baseForm").addEventListener("submit",e=>{
     debut:$("fDebut").value||null,fin:fKind==="location"?($("fFin").value||null):null,
     hDebut:$("fDebut").value?($("fHDebut").value||null):null,hFin:fKind==="location"&&$("fFin").value?($("fHFin").value||null):null};
   if(data.debut&&data.fin&&(data.fin<data.debut||(data.fin===data.debut&&data.hDebut&&data.hFin&&data.hFin<=data.hDebut))){$("fErr").textContent="La reprise doit être après l'arrivée du matériel.";$("fErr").hidden=false;return}
-  if(!data.evenement||!data.objet){$("fErr").textContent="Indique l'événement et le besoin.";$("fErr").hidden=false;return}
-  {const ev=evByName(data.evenement);if(ev){data.eventId=ev._id;data.evenement=ev.nom}else data.eventId=slugId(data.evenement)}
+  const ferr=t=>{$("fErr").textContent=t;$("fErr").hidden=false};
+  if(!data.evenement||!data.objet)return ferr(fKind==="achat"?"Indique l'événement ou la catégorie, et le besoin.":"Indique l'événement et le besoin.");
+  {
+    const ev=evByName(data.evenement);
+    if(ev&&isCat(ev)&&fKind==="location")return ferr(`« ${ev.nom} » est une catégorie d'achats : une location se rattache à un événement.`);
+    if(ev){data.eventId=ev._id;data.evenement=ev.nom}
+    else if(fKind==="achat"&&evTable){
+      // a new name in Achat DTSE creates a category
+      const id="cat-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      const cat={nom:data.evenement,kind:"categorie",style:defStyle(),cree:new Date().toISOString()};
+      events.push({_id:id,...cat});write(id,()=>api("evenements",id,"set",cat));data.eventId=id;
+    }
+    else data.eventId=slugId(data.evenement);
+  }
   $("fErr").hidden=true;
   if(fiche.id){
     const id=fiche.id;
     write(id,()=>api("devis",id,"update",data));
-    const d=devisById(id);Object.assign(d,data);render();snapshotFiche();
+    const d=devisById(id),moved=spaceOfType(d.type)!==spaceOfType(data.type);Object.assign(d,data);render();snapshotFiche();
+    if(moved)toast(`${pad(d.num)} ${d.objet||""} est maintenant dans « ${SPACES[spaceOfType(data.type)].nom} ».`,()=>{closeFiche();setSpace(spaceOfType(data.type))},"Y aller");
   }else{
     // provisional number on screen; the server gives the real one (never twice the same)
     const num=rows.concat(trash.devis).reduce((m,r)=>Math.max(m,r.num||0),0)+1;
     const id="d-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    const doc={...data,aEnvoyer:false,envoye:false,signe:false,paye:false,factSB:false,factRecue:false,factEnvoyee:false,cree:new Date().toISOString()};
-    rows.push({_id:id,num,...doc});
+    const doc={...data,aEnvoyer:false,envoye:false,signe:false,demande:false,commande:false,livre:false,paye:false,factSB:false,factRecue:false,factEnvoyee:false,cree:new Date().toISOString()};
+    rows.push({_id:id,num,...doc});render();
     write(id,async()=>{const r=await api("devis",id,"create",doc);const d=devisById(id);if(d&&r.num&&d.num!==r.num){d.num=r.num;render()}});
     openFiche(id);openOffer({kind:"add"});
+    if(spaceOfType(data.type)!==space)toast(`${data.objet} est rangé dans « ${SPACES[spaceOfType(data.type)].nom} ».`,()=>{closeFiche();setSpace(spaceOfType(data.type))},"Y aller");
   }
 });
 $("delBtn").onclick=()=>{
@@ -802,7 +877,7 @@ function renderTrash(){
   if(!n)html+=`<div class="empty-state">La corbeille est vide.</div>`;
   if(t.devis.length)html+=`<h3 class="tr-sec">Besoins (${t.devis.length})</h3>`+t.devis.map(x=>item("devis",x,`${pad(x.num)} ${esc(x.objet||"Sans objet")}`,`${esc((EV.get(evKey(x))||{}).nom||x.evenement||"")} · ${(rawData?.offres||[]).filter(o=>o.devisId===x._id).length} proposition(s)`)).join("");
   if(t.offres.length)html+=`<h3 class="tr-sec">Propositions (${t.offres.length})</h3>`+t.offres.map(x=>{const d=devisById(x.devisId);return item("offres",x,`${esc(x.fournisseur)} V${x.version||1} · ${eur(x.montant)||"prix à venir"}`,d?`${pad(d.num)} ${esc(d.objet||"")} · ${esc(evOf(d))}`:"")}).join("");
-  if(t.evenements.length)html+=`<h3 class="tr-sec">Événements (${t.evenements.length})</h3>`+t.evenements.map(x=>item("evenements",x,esc(x.nom||""),esc([fmtEvDates(x),x.lieu].filter(Boolean).join(" · ")))).join("");
+  if(t.evenements.length)html+=`<h3 class="tr-sec">Événements et catégories (${t.evenements.length})</h3>`+t.evenements.map(x=>item("evenements",x,esc(x.nom||""),esc(isCat(x)?"Catégorie d'achats":[fmtEvDates(x),x.lieu].filter(Boolean).join(" · ")))).join("");
   $("trashView").innerHTML=html;
 }
 $("trashView").addEventListener("click",e=>{
@@ -817,8 +892,9 @@ $("trashBtn").onclick=()=>{view=view==="corbeille"?"events":"corbeille";render()
 
 // Undo bar after a deletion
 let toastTimer=null;
-function toast(text,undo){
+function toast(text,undo,label){
   const t=$("toast");$("toastText").textContent=text;t.hidden=false;
+  $("toastUndo").textContent=label||"Annuler";
   $("toastUndo").hidden=!undo;$("toastUndo").onclick=()=>{t.hidden=true;undo&&undo()};
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,8000);
 }
@@ -831,11 +907,12 @@ function download(name,content,type){
 const stamp=()=>isoOf(new Date());
 function exportRows(){
   const yes=b=>b?"oui":"";
-  const head=["N°","Événement","Date événement","Lieu","Besoin","Type","Arrivée / livraison","Heure arrivée / livraison","Reprise","Heure reprise","À envoyer","Envoyé","Signé","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Ce qui est loué","Réf. fournisseur","PDF"];
+  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Reprise","Heure reprise","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF"];
   const lines=[head];
-  for(const d of [...rows].sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
-    const ev=evObj(d);
-    const b=[pad(d.num),ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",kindOf(d),d.debut||"",d.hDebut||"",kindOf(d)==="location"?d.fin||"":"",kindOf(d)==="location"?d.hFin||"":"",yes(d.aEnvoyer),yes(d.envoye),yes(d.signe),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
+  for(const d of [...rows].sort((a,b)=>(kindOf(a)>kindOf(b)?-1:kindOf(a)<kindOf(b)?1:0)||evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
+    const ev=evObj(d), loc=kindOf(d)==="location";
+    const b=[pad(d.num),SPACES[spaceOfType(d.type)].nom,ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",d.debut||"",d.hDebut||"",loc?d.fin||"":"",loc?d.hFin||"":"",
+      loc?yes(d.aEnvoyer):"",loc?yes(d.envoye):"",loc?yes(d.signe):"",loc?"":yes(d.demande),loc?"":yes(d.commande),loc?"":yes(d.livre),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
     const os=offersOf(d._id).sort((x,y)=>keyOf(x.fournisseur).localeCompare(keyOf(y.fournisseur))||(x.version||1)-(y.version||1));
     if(!os.length)lines.push([...b,"","","","","","",""]);
     for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:""]);
@@ -854,11 +931,15 @@ $("exportJson").onclick=()=>{
 // Data is fetched from the server, then refreshed every 15 s (and when the tab comes back),
 // so changes made by the others show up without reloading.
 let pending=0, refreshTimer=null, started=false;
+// A reading that started before a change finished may not contain it: it is thrown away
+// (writeGen moved) and another one follows once all changes are saved.
+let writeGen=0;
 async function refresh(){
   if(pending)return;
+  const gen=writeGen;
   try{
     const j=await call("/api/data");
-    if(pending)return;
+    if(pending||gen!==writeGen){if(!pending)setTimeout(refresh,300);return}
     $("notice").hidden=true;
     const sig=JSON.stringify(j);
     if(sig===lastSig&&gotDevis)return; // nothing new: no redraw, no flicker, focus kept
