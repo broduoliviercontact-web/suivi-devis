@@ -170,7 +170,7 @@ function renderEvents(){
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
         `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer en "+(kindOf(d)==="achat"?"location":"achat"):""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
         (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
-        (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,d.hDebut,d.hFin,true)}</span>`:"")+`</div>`+
+        (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,d.hDebut,d.hFin,true)}</span>`:kindOf(d)==="achat"&&d.debut?`<span class="dates">${fmtLiv(d,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
         STEPS.map(([k,l])=>ck(d,k,l,false)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
@@ -435,6 +435,8 @@ const kindOf=d=>d.type==="achat"?"achat":"location";
 const fmtD=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");if(!m)return"";const d=new Date(+m[1],+m[2]-1,+m[3]);return d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}).replace(/\./g,"")};
 const fmtH=h=>{const m=/^(\d{2}):(\d{2})/.exec(h||"");return m?`${+m[1]}h${m[2]==="00"?"":m[2]}`:""};
 // "jeu 5 nov 9h → lun 9 nov 14h · 5 j" (hours optional); html=true wraps hours in <b>
+// "Livraison jeu 5 nov 9h" (purchases)
+function fmtLiv(d,html){const h=fmtH(d.hDebut);return `Livraison ${fmtD(d.debut)}${h?(html?` <b>${h}</b>`:` ${h}`):""}`}
 function fmtRange(a,b,ha,hb,html){
   const H=h=>{const t=fmtH(h);return t?(html?` <b>${t}</b>`:` ${t}`):""};
   if(a&&b){const n=Math.round((new Date(b)-new Date(a))/864e5)+1;return `${fmtD(a)}${H(ha)} → ${fmtD(b)}${H(hb)}`+(n>0?` · ${n} j`:"")}
@@ -443,6 +445,10 @@ let fKind="location";
 function paintKind(){
   document.querySelectorAll("#fKind button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===fKind));
   document.querySelectorAll("#baseForm .loc-only").forEach(l=>l.hidden=fKind!=="location");
+  // a purchase is delivered once and never taken back: one date and time, no pickup
+  $("whenInL").textContent=fKind==="achat"?"Livraison (facultatif)":"Arrivée du matériel";
+  $("fDebut").setAttribute("aria-label",fKind==="achat"?"Date de livraison":"Date d'arrivée");
+  $("fHDebut").setAttribute("aria-label",fKind==="achat"?"Heure de livraison":"Heure d'arrivée");
 }
 $("fKind").addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(b&&canWrite){fKind=b.dataset.k;paintKind()}});
 $("list").addEventListener("click",e=>{
@@ -459,11 +465,12 @@ try{const m=/^(\d{4})-(\d{2})$/.exec(localStorage.getItem("devis-cal")||"");if(m
 const isoOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const dayOf=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?new Date(+m[1],+m[2]-1,+m[3]):null};
 function locations(){
-  return rows.filter(r=>kindOf(r)==="location"&&(r.debut||r.fin)).map(r=>{
-    let a=dayOf(r.debut||r.fin), b=dayOf(r.fin||r.debut); if(b<a)[a,b]=[b,a];
+  return rows.filter(r=>kindOf(r)==="location"?(r.debut||r.fin):r.debut).map(r=>{
+    const liv=kindOf(r)==="achat";
+    let a=dayOf(r.debut||r.fin), b=liv?a:dayOf(r.fin||r.debut); if(b<a)[a,b]=[b,a];
     const ret=retained(r._id), g=supplierGroups(r._id);
     const four=ret?ret.fournisseur:(g.length===1?g[0].latest.fournisseur:"");
-    return {r,a,b,four,c:evClass(styleOf(evObj(r)))};
+    return {r,a,b,four,liv,c:evClass(styleOf(evObj(r)))};
   }).sort((x,y)=>x.a-y.a||x.b-y.b||x.r.num-y.r.num);
 }
 function setCal(d){calMonth=new Date(d.getFullYear(),d.getMonth(),1);try{localStorage.setItem("devis-cal",isoOf(calMonth).slice(0,7))}catch(_){}renderCalendar()}
@@ -477,13 +484,14 @@ function renderCalendar(){
   $("calTitle").textContent=first.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
   const all=locations();
   const inMonth=all.filter(l=>l.b>=first&&l.a<=last);
-  $("calCount").textContent=inMonth.length?`${inMonth.length} location${inMonth.length>1?"s":""} ce mois-ci`:"Aucune location ce mois-ci";
+  {const nl=inMonth.filter(l=>!l.liv).length,nv=inMonth.length-nl;
+   $("calCount").textContent=inMonth.length?[nl?`${nl} location${nl>1?"s":""}`:"",nv?`${nv} livraison${nv>1?"s":""}`:""].filter(Boolean).join(" · ")+" ce mois-ci":"Aucune location ni livraison ce mois-ci"}
   const todayIso=isoOf(new Date());
   // weeks from the Monday on/before the 1st to the Sunday on/after the last day
   const start=new Date(y,m,1-((first.getDay()+6)%7));
   const end=new Date(y,m+1,0+(7-((last.getDay()+6)%7)-1));
-  const label=(l,first,last)=>`${first&&l.r.hDebut?`<span class="hb in" title="Arrivée du matériel"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}<span class="cl">${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}</span>${last&&l.r.hFin?`<span class="hb out" title="Reprise du matériel"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}`;
-  const tip=l=>esc(`${l.r.objet||""} · ${evOf(l.r)}${l.four?" · "+l.four:""}\n${fmtRange(l.r.debut,l.r.fin,l.r.hDebut,l.r.hFin)}`);
+  const label=(l,first,last)=>l.liv?`<span class="hb in" title="Livraison (achat, sans reprise)"><i>Livraison</i>${l.r.hDebut?" "+esc(fmtH(l.r.hDebut)):""}</span><span class="cl">${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}</span>`:`${first&&l.r.hDebut?`<span class="hb in" title="Arrivée du matériel"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}<span class="cl">${esc(l.r.objet||"Sans objet")}${l.four?` <span class="cf">· ${esc(l.four)}</span>`:""}</span>${last&&l.r.hFin?`<span class="hb out" title="Reprise du matériel"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}`;
+  const tip=l=>esc(`${l.r.objet||""} · ${evOf(l.r)}${l.four?" · "+l.four:""}\n${l.liv?fmtLiv(l.r):fmtRange(l.r.debut,l.r.fin,l.r.hDebut,l.r.hFin)}`);
   let html=`<div class="cal"><div class="cal-dow">${["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(d=>`<div>${d}</div>`).join("")}</div>`;
   for(let w=new Date(start);w<=end;w=new Date(w.getFullYear(),w.getMonth(),w.getDate()+7)){
     const wEnd=new Date(w.getFullYear(),w.getMonth(),w.getDate()+6);
@@ -504,7 +512,7 @@ function renderCalendar(){
   }
   html+=`</div>`;
   // phone: chronological list for the month
-  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ce mois-ci.</div>`}</div>`;
+  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.liv?`<span class="cl-hours"><span class="hb"><i>Livraison</i>${l.r.hDebut?" "+esc(fmtH(l.r.hDebut)):""}</span></span>`:l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(fmtH(l.r.hDebut))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(fmtH(l.r.hFin))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ni livraison ce mois-ci.</div>`}</div>`;
   const undated=rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num);
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;
@@ -613,8 +621,8 @@ function renderMem(){
 $("baseForm").addEventListener("submit",e=>{
   e.preventDefault();if(!db||!canWrite)return;
   const data={evenement:$("fEvent").value.trim(),objet:$("fObjet").value.trim(),type:fKind,
-    debut:fKind==="location"?($("fDebut").value||null):null,fin:fKind==="location"?($("fFin").value||null):null,
-    hDebut:fKind==="location"?($("fHDebut").value||null):null,hFin:fKind==="location"?($("fHFin").value||null):null};
+    debut:$("fDebut").value||null,fin:fKind==="location"?($("fFin").value||null):null,
+    hDebut:$("fDebut").value?($("fHDebut").value||null):null,hFin:fKind==="location"&&$("fFin").value?($("fHFin").value||null):null};
   if(data.debut&&data.fin&&(data.fin<data.debut||(data.fin===data.debut&&data.hDebut&&data.hFin&&data.hFin<=data.hDebut))){$("fErr").textContent="La reprise doit être après l'arrivée du matériel.";$("fErr").hidden=false;return}
   if(!data.evenement||!data.objet){$("fErr").textContent="Indique l'événement et le besoin.";$("fErr").hidden=false;return}
   {const ev=evByName(data.evenement);if(ev){data.eventId=ev._id;data.evenement=ev.nom}else data.eventId=slugId(data.evenement)}
@@ -775,11 +783,11 @@ function download(name,content,type){
 const stamp=()=>isoOf(new Date());
 function exportRows(){
   const yes=b=>b?"oui":"";
-  const head=["N°","Événement","Date événement","Lieu","Besoin","Type","Arrivée","Heure arrivée","Reprise","Heure reprise","À envoyer","Envoyé","Signé","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Ce qui est loué","Réf. fournisseur","PDF"];
+  const head=["N°","Événement","Date événement","Lieu","Besoin","Type","Arrivée / livraison","Heure arrivée / livraison","Reprise","Heure reprise","À envoyer","Envoyé","Signé","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Ce qui est loué","Réf. fournisseur","PDF"];
   const lines=[head];
   for(const d of [...rows].sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
     const ev=evObj(d);
-    const b=[pad(d.num),ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",kindOf(d),d.debut||"",d.hDebut||"",d.fin||"",d.hFin||"",yes(d.aEnvoyer),yes(d.envoye),yes(d.signe),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
+    const b=[pad(d.num),ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",kindOf(d),d.debut||"",d.hDebut||"",kindOf(d)==="location"?d.fin||"":"",kindOf(d)==="location"?d.hFin||"":"",yes(d.aEnvoyer),yes(d.envoye),yes(d.signe),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
     const os=offersOf(d._id).sort((x,y)=>keyOf(x.fournisseur).localeCompare(keyOf(y.fournisseur))||(x.version||1)-(y.version||1));
     if(!os.length)lines.push([...b,"","","","","","",""]);
     for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:""]);

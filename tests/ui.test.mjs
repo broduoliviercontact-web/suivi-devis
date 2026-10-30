@@ -176,6 +176,33 @@ describe("ordinateur", () => {
   });
 });
 
+describe("achats", () => {
+  test("livraison sans reprise : fiche, tableau et calendrier", async () => {
+    const page = await open();
+    await page.click('[data-open="d3"] >> nth=0');
+    assert.equal(await page.textContent("#whenInL"), "Livraison (facultatif)");
+    assert.ok(await page.isHidden("#whenOut"), "pas de reprise pour un achat");
+    await page.fill("#fDebut", "2026-11-04"); await page.fill("#fHDebut", "10:30");
+    await page.click("#saveBtn"); await page.waitForTimeout(500);
+    const d = s.db.devis.get("d3");
+    assert.equal(d.debut, "2026-11-04"); assert.equal(d.hDebut, "10:30"); assert.equal(d.fin, null);
+    await page.click("#closeBtn");
+    assert.match(await page.textContent('.row:has([data-open="d3"]) .dates'), /^Livraison mer 4 nov\s10h30$/u);
+    // a location switched to purchase keeps only the delivery
+    await page.click('[data-open="d1"] >> nth=0'); await page.click('#fKind [data-k="achat"]');
+    assert.ok(await page.isHidden("#whenOut"));
+    await page.click("#saveBtn"); await page.waitForTimeout(500); await page.click("#closeBtn");
+    assert.equal(s.db.devis.get("d1").fin, null); assert.equal(s.db.devis.get("d1").hFin, null);
+    await page.click("#tabCal");
+    for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
+      await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
+    assert.equal(await page.textContent("#calCount"), "2 livraisons ce mois-ci");
+    const bar = await page.textContent('.cbar[data-open="d3"]');
+    assert.match(bar, /Livraison 10h30/); assert.doesNotMatch(bar, /Reprise/);
+    assert.equal(await page.locator('.cbar[data-open="d1"]').count(), 1, "une seule case, pas une barre sur plusieurs jours");
+  });
+});
+
 describe("iPhone", () => {
   test("rien ne déborde, la fiche s'ouvre en plein écran", async () => {
     const page = await open(devices["iPhone 13"]);
