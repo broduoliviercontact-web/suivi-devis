@@ -130,8 +130,8 @@
       <label>Besoin<input id="fObjet" list="objets" required placeholder="ex. Praticables, talkies, sécu…"></label>
       <div class="kind-label full"><span>Type</span><div class="kind-seg" id="fKind" role="group" aria-label="Type">
         <button type="button" data-k="location">Location</button><button type="button" data-k="achat">Achat</button></div></div>
-      <div class="full when-row" id="whenIn"><span class="when-l" id="whenInL">Arrivée du matériel</span><div class="when-in"><input type="date" id="fDebut" aria-label="Date d'arrivée"><input type="time" id="fHDebut" step="900" aria-label="Heure d'arrivée"></div></div>
-      <div class="loc-only full when-row" id="whenOut"><span class="when-l">Reprise du matériel</span><div class="when-in"><input type="date" id="fFin" aria-label="Date de reprise"><input type="time" id="fHFin" step="900" aria-label="Heure de reprise"></div></div>
+      <div class="full when-row" id="whenIn"><span class="when-l" id="whenInL">Arrivée du matériel</span><div class="when-in"><input type="date" id="fDebut" aria-label="Date d'arrivée"><input type="time" id="fHDebut" step="900" aria-label="Heure d'arrivée"><span class="when-a" aria-hidden="true">à</span><input type="time" id="fHDebut2" step="900" aria-label="Jusqu'à (facultatif)" title="Fin du créneau (facultatif)"></div></div>
+      <div class="loc-only full when-row" id="whenOut"><span class="when-l">Reprise du matériel</span><div class="when-in"><input type="date" id="fFin" aria-label="Date de reprise"><input type="time" id="fHFin" step="900" aria-label="Heure de reprise"><span class="when-a" aria-hidden="true">à</span><input type="time" id="fHFin2" step="900" aria-label="Reprise jusqu'à (facultatif)" title="Fin du créneau (facultatif)"></div></div>
       <p class="err full" id="fErr" hidden></p>
       <div class="actions full">
         <button type="button" class="danger" id="delBtn" hidden>Supprimer ce besoin</button>

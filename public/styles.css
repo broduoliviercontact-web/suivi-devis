@@ -206,7 +206,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{
 .when-row{display:flex;flex-direction:column;gap:5px}
 .when-l{color:var(--muted);font-weight:600}
 .when-l{text-transform:none;letter-spacing:0;font-size:.8rem}
-.when-in{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:8px}
+.when-in{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center}
+.when-a{color:var(--muted);font-size:.85rem}
+.when-hint{color:var(--muted);font-size:.75rem;font-weight:400}
+@media (max-width:480px){.when-in{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}.when-in input[type=date]{grid-column:1 / -1}}
 .when-in input{font:inherit;font-size:1rem;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-width:0;width:100%}
 .dates b{font-weight:600;color:var(--fg)}
 .dates{flex-basis:100%;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-left:1px}

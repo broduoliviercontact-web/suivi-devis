@@ -26,9 +26,10 @@
   const clean = (s) => String(s ?? "").replace(/[→⇒]/g, "->").replace(/[   ]/g, " ").replace(/[^\x20-\x7e -ÿŒœŠšŸŽž–—‘’‚“”„†‡•…‰€]/g, "");
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const h = (t) => { const m = /^(\d{2}):(\d{2})/.exec(t || ""); return m ? `${+m[1]}h${m[2] === "00" ? "" : m[2]}` : ""; };
+  const slot = (a, b) => h(a) && h(b) ? `${h(a)}–${h(b)}` : h(a);
   const dShort = (d) => `${d.getDate()} ${ABBR[d.getMonth()]}`;
 
-  /* items: [{a: Date, b: Date, liv: bool, objet, evenement, fournisseur, num, hDebut, hFin, color}] */
+  /* items: [{a: Date, b: Date, liv: bool, objet, evenement, fournisseur, num, hDebut, hDebut2, hFin, hFin2, color}] */
   async function build({ month, items, filterLabel, partsLabel }) {
     const { jsPDF } = await lib();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -103,10 +104,10 @@
           doc.setTextColor("#ffffff"); doc.text(txt, bx + 1, by + 3.3);
           if (atRight) right = bx - 1; else tx = bx + tw + 1;
         };
-        if (b.l.liv) badge(clean(`Livraison${b.l.hDebut ? " " + h(b.l.hDebut) : ""}`));
+        if (b.l.liv) badge(clean(`Livraison${b.l.hDebut ? " " + slot(b.l.hDebut, b.l.hDebut2) : ""}`));
         else {
-          if (b.first && b.l.hDebut) badge(`Arr. ${h(b.l.hDebut)}`);
-          if (b.last && b.l.hFin) badge(`Rep. ${h(b.l.hFin)}`, true);
+          if (b.first && b.l.hDebut) badge(clean(`Arr. ${slot(b.l.hDebut, b.l.hDebut2)}`));
+          if (b.last && b.l.hFin) badge(clean(`Rep. ${slot(b.l.hFin, b.l.hFin2)}`), true);
         }
         doc.setFont("helvetica", "normal"); doc.setFontSize(6.8); doc.setTextColor(fg);
         let txt = clean(b.l.objet + (b.l.fournisseur ? " · " + b.l.fournisseur : ""));
@@ -122,7 +123,7 @@
     // ---- détail du mois
     if (inMonth.length) {
       doc.addPage(); header(`Détail · ${counts}`);
-      const cols = [["Date(s)", 38], ["Heures", 32], ["Type", 20], ["N°", 12], ["Besoin", 62], ["Événement / catégorie", 62], ["Fournisseur", 51]];
+      const cols = [["Date(s)", 38], ["Heures", 48], ["Type", 20], ["N°", 12], ["Besoin", 54], ["Événement / catégorie", 54], ["Fournisseur", 51]];
       let ty = top;
       const rowH = 6.2;
       const head = () => {
@@ -136,7 +137,7 @@
       for (const l of [...inMonth].sort((p, q) => p.a - q.a || p.b - q.b || p.num - q.num)) {
         if (ty + rowH > bottom) { doc.addPage(); header("Détail · suite"); ty = top; head(); }
         const dates = l.liv || +l.a === +l.b ? dShort(l.a) : `${dShort(l.a)} -> ${dShort(l.b)}`;
-        const hours = l.liv ? (l.hDebut ? "livr. " + h(l.hDebut) : "") : [l.hDebut ? "arr. " + h(l.hDebut) : "", l.hFin ? "rep. " + h(l.hFin) : ""].filter(Boolean).join(" · ");
+        const hours = l.liv ? (l.hDebut ? "livr. " + slot(l.hDebut, l.hDebut2) : "") : [l.hDebut ? "arr. " + slot(l.hDebut, l.hDebut2) : "", l.hFin ? "rep. " + slot(l.hFin, l.hFin2) : ""].filter(Boolean).join(" · ");
         const cells = [dates, hours, l.liv ? "Livraison" : "Location", "#" + String(l.num).padStart(3, "0"), l.objet, l.evenement, l.fournisseur || ""];
         doc.setDrawColor(GRID); doc.line(M, ty + rowH, M + gw, ty + rowH);
         doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(INK);

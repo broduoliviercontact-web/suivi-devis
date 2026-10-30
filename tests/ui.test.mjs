@@ -147,8 +147,8 @@ describe("ordinateur", () => {
     const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#exportCsv")]);
     const csv = fs.readFileSync(await dl.path(), "utf8");
     assert.ok(csv.startsWith("\ufeffN°;Partie;Événement / catégorie;"));
-    assert.ok(csv.includes("#001;Location Événementielle;Ouverture de la halle;2026-11-06 → 2026-11-08;Grandes Serres;Talkies;2026-11-05;09:00;2026-11-09;14:30;oui;"));
-    assert.ok(csv.includes("#003;Achat DTSE;VOEUX DU MAIRE 06/01/27;;;Gaffer;;;;;;;;;;;"), "les achats aussi, avec leurs propres étapes");
+    assert.ok(csv.includes("#001;Location Événementielle;Ouverture de la halle;2026-11-06 → 2026-11-08;Grandes Serres;Talkies;2026-11-05;09:00;;2026-11-09;14:30;;oui;"));
+    assert.ok(csv.includes("#003;Achat DTSE;VOEUX DU MAIRE 06/01/27;;;Gaffer;;;;;;;;;;;;;"), "les achats aussi, avec leurs propres étapes");
     assert.ok(csv.includes(";TSF;V1;380;"));
   });
 
@@ -218,6 +218,44 @@ describe("achats", () => {
     const bar = await page.textContent('.cbar[data-open="d3"]');
     assert.match(bar, /Livraison 10h30/); assert.doesNotMatch(bar, /Reprise/);
     assert.equal(await page.locator('.cbar[data-open="d1"]').count(), 1, "une seule case, pas une barre sur plusieurs jours");
+  });
+});
+
+describe("créneaux horaires", () => {
+  test("arrivée, reprise et livraison en fourchette (de 10h à 18h)", async () => {
+    const page = await open();
+    await page.click('[data-open="d1"] >> nth=0');
+    await page.fill("#fHDebut", "10:00"); await page.fill("#fHDebut2", "18:00");
+    await page.fill("#fHFin", "09:00"); await page.fill("#fHFin2", "12:30");
+    await page.click("#saveBtn"); await page.waitForTimeout(500);
+    let d = s.db.devis.get("d1");
+    assert.deepEqual([d.hDebut, d.hDebut2, d.hFin, d.hFin2], ["10:00", "18:00", "09:00", "12:30"]);
+    await page.click("#closeBtn");
+    assert.match(await page.textContent('.row:has([data-open="d1"]) .dates'), /10h–18h → .* 9h–12h30/u);
+    // fin avant début : refusé ; heure de fin seule : refusé
+    await page.click('[data-open="d1"] >> nth=0');
+    await page.fill("#fHDebut2", "08:00"); await page.click("#saveBtn");
+    assert.match(await page.textContent("#fErr"), /fin du créneau/);
+    await page.fill("#fHDebut2", "18:00"); await page.fill("#fHFin", ""); await page.click("#saveBtn");
+    assert.match(await page.textContent("#fErr"), /début du créneau/);
+    await page.fill("#fHFin", "09:00"); await page.click("#saveBtn"); await page.waitForTimeout(400); await page.click("#closeBtn");
+    // achat : livraison dans une fourchette
+    await page.click("#spAch");
+    await page.click('[data-open="d3"] >> nth=0');
+    await page.fill("#fDebut", "2026-11-04"); await page.fill("#fHDebut", "10:00"); await page.fill("#fHDebut2", "18:00");
+    await page.click("#saveBtn"); await page.waitForTimeout(500); await page.click("#closeBtn");
+    assert.equal(s.db.devis.get("d3").hDebut2, "18:00");
+    assert.match(await page.textContent('.row:has([data-open="d3"]) .dates'), /^Livraison mer 4 nov\s10h–18h$/u);
+    await page.click("#tabCal");
+    for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
+      await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
+    assert.match(await page.textContent('.cbar[data-open="d3"]'), /Livraison 10h–18h/);
+    assert.match(await page.textContent('.cbar[data-open="d1"] >> nth=0'), /Arrivée 10h–18h/);
+    // effacer l'heure de début efface aussi la fourchette
+    await page.click("#tabEv"); await page.click("#spLoc");
+    await page.click('[data-open="d1"] >> nth=0');
+    await page.fill("#fHDebut", ""); await page.fill("#fHDebut2", ""); await page.click("#saveBtn"); await page.waitForTimeout(400);
+    d = s.db.devis.get("d1"); assert.equal(d.hDebut, null); assert.equal(d.hDebut2, null);
   });
 });
 
@@ -302,7 +340,7 @@ describe("calendrier en PDF", () => {
     return (await DevisReader.extractLines(bytes)).map((l) => l.cells.map((c) => c.s).join(" ")).join("\n");
   }, fs.readFileSync(file).toString("base64"));
   test("le mois affiché, avec le filtre choisi", async () => {
-    s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07", hDebut: "08:00" } } });
+    s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07", hDebut: "08:00", hDebut2: "12:00" } } });
     const page = await open();
     await page.click("#tabCal");
     for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
@@ -313,9 +351,9 @@ describe("calendrier en PDF", () => {
     let txt = await pdfText(page, await dl.path());
     assert.match(txt, /Calendrier · novembre 2026/);
     assert.match(txt, /1 location · 1 livraison/);
-    assert.match(txt, /Arr\. 9h/); assert.match(txt, /Rep\. 14h30/); assert.match(txt, /Livraison 8h/);
+    assert.match(txt, /Arr\. 9h/); assert.match(txt, /Rep\. 14h30/); assert.match(txt, /Livraison 8h–12h/);
     assert.match(txt, /5 nov\. -> 9 nov\.\s+arr\. 9h · rep\. 14h30\s+Location\s+#001\s+Talkies\s+Ouverture de la halle/);
-    assert.match(txt, /7 nov\.\s+livr\. 8h\s+Livraison\s+#003\s+Gaffer\s+VOEUX DU MAIRE 06\/01\/27/);
+    assert.match(txt, /7 nov\.\s+livr\. 8h–12h\s+Livraison\s+#003\s+Gaffer\s+VOEUX DU MAIRE 06\/01\/27/);
     await page.click('[data-cf="liv"]');
     [dl] = await Promise.all([page.waitForEvent("download"), page.click("#calPdf")]);
     assert.equal(dl.suggestedFilename(), "calendrier-2026-11-livraisons.pdf");
