@@ -48,7 +48,7 @@ Ils utilisent un faux Supabase local : aucune donnée réelle n'est touchée.
 - **Serveur** : mot de passe, en-têtes de sécurité, numéros uniques (20 créations simultanées), corbeille, plus de 1 000 lignes, nettoyage à 30 jours, envoi et ouverture de PDF, demandes invalides.
 - **Navigateur** (ordinateur et iPhone) : connexion, cases, création d'un besoin et d'une proposition, saisie protégée, fiches événement, corbeille et annulation, export Excel, clavier (fiches et onglets), dépliage des propositions, calendrier, affichage iPhone.
 
-Pour les lancer sur un ordinateur (Node 20+) : `cd tests && npm install && npx playwright install chromium && npm test`.
+Pour les lancer sur un ordinateur (Node 22+) : `cd tests && npm install && npx playwright install chromium && npm test`.
 
 ## Comment ça marche
 - Les changements des autres apparaissent tout seuls, avec un rafraîchissement toutes les 15 secondes.
