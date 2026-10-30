@@ -175,8 +175,8 @@ function renderEvents(){
   const groups=new Map();
   for(const d of [...shown].sort((a,b)=>a.num-b.num)){const k=evKey(d);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(d)}
   // empty fiches: events in Location, categories in Achat
-  if(f==="tous")for(const e of EV.values())if(!e.virtual&&!groups.has(e._id)&&isCat(e)===ach)groups.set(e._id,[]);
-  const newEv=canWrite?(ach?`<button type="button" class="new-ev" data-newev="cat">+ Nouvelle catégorie</button>`:`<button type="button" class="new-ev" data-newev="ev">+ Nouvel événement</button>`):"";
+  if(f==="tous")for(const e of EV.values())if(!e.virtual&&!groups.has(e._id)&&partOf(e)===space)groups.set(e._id,[]);
+  const newEv=canWrite?`<div class="new-evs">${ach?`<button type="button" class="new-ev" data-newev="cat">+ Nouvelle catégorie</button>`:""}<button type="button" class="new-ev" data-newev="ev">+ Nouvel événement</button></div>`:"";
   if(!groups.size){list.innerHTML=(sr.length?`<div class="empty-state">Rien dans ce filtre. Tout est à jour.</div>`:`<div class="empty-state">${ach?"Aucun achat pour l'instant. Ajoute le premier avec « + Nouveau besoin »":"Aucun devis pour l'instant. Ajoute le premier avec « + Nouveau besoin »"}.</div>`)+(f==="tous"?newEv:"");return}
   // Achat: categories first (A→Z), then events by date. Location: events by date.
   const ordered=[...groups].map(([k,items])=>[EV.get(k)||{_id:k,nom:k},items]).sort((a,b)=>(isCat(b[0])-isCat(a[0]))||(isCat(a[0])?0:evTime(a[0])-evTime(b[0]))||String(a[0].nom).localeCompare(String(b[0].nom),"fr"));
@@ -196,7 +196,7 @@ function renderEvents(){
       const [cls,lab]=status(d), f=rowFile(d);
       html+=`<div class="row"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
-        `<button type="button" class="kind ${kindOf(d)==="achat"?"ach":"loc"}" data-kind="${esc(d._id)}" title="${canWrite?"Cliquer pour passer dans « "+SPACES[kindOf(d)==="achat"?"loc":"ach"].nom+" »":""}" ${canWrite?"":"disabled"}>${kindOf(d)==="achat"?"Achat":"Location"}</button>`+
+        `<span class="kind ${kindOf(d)==="achat"?"ach":"loc"}">${kindOf(d)==="achat"?"Achat":"Location"}</span>`+
         (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,[d.hDebut,d.hDebut2],[d.hFin,d.hFin2],true)}</span>`:kindOf(d)==="achat"&&d.debut?`<span class="dates">${fmtLiv(d,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
@@ -245,7 +245,7 @@ function renderMemory(){
 
 function renderLists(){
   // achats can go to a category or an event; locations only to an event
-  const ev=[...EV.values()].filter(e=>e.nom&&e.nom!=="Sans événement"&&(fKind==="achat"||!isCat(e))).sort((a,b)=>(isCat(b)-isCat(a))||evTime(a)-evTime(b)).map(e=>e.nom);
+  const ev=[...EV.values()].filter(e=>e.nom&&e.nom!=="Sans événement"&&partOf(e)===spaceOfType(fKind)).sort((a,b)=>(isCat(b)-isCat(a))||evTime(a)-evTime(b)).map(e=>e.nom);
   $("events").innerHTML=ev.map(e=>`<option value="${esc(e)}">`).join("");
   const ob=new Map();rows.forEach(r=>{if(r.objet&&!ob.has(keyOf(r.objet)))ob.set(keyOf(r.objet),r.objet)});
   $("objets").innerHTML=[...ob.values()].map(e=>`<option value="${esc(e)}">`).join("");
@@ -387,11 +387,47 @@ function buildEvents(){
   EV=m;
 }
 const isCat=e=>!!e&&e.kind==="categorie";
+/* Each part has its own fiches: a category is always Achat DTSE; an event has part "loc" or "ach".
+   A virtual event (old besoins without fiche) belongs to the part of its besoins. */
+const partOf=e=>isCat(e)?"ach":e&&e.part?e.part:e&&e.virtual?(rows.some(r=>evKey(r)===e._id&&kindOf(r)==="location")?"loc":"ach"):"loc";
 const evObj=r=>EV.get(evKey(r))||{_id:evKey(r),nom:(r.evenement||"Sans événement").trim(),virtual:true};
 const evOf=r=>evObj(r).nom||"Sans événement";
 const styleOf=ev=>({...defStyle(),...((ev&&ev.style)||{})});
 const evTime=ev=>{const d=dayOf(ev&&ev.date);return d?d.getTime():evDate(ev&&ev.nom)};
-const evByName=name=>{const k=keyOf(name);return [...EV.values()].find(e=>keyOf(e.nom)===k)};
+const evByName=(name,part)=>{const k=keyOf(name);return [...EV.values()].find(e=>keyOf(e.nom)===k&&(!part||partOf(e)===part))};
+const newEvId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// The fiche named `name` in `part`; created if needed (a copy of the same-name event of the other part, else a category for Achat / an event for Location).
+function ensureEv(name,part){
+  const ev=evByName(name,part);if(ev)return ev;
+  if(!evTable)return {_id:slugId(name),nom:name,virtual:true};
+  const twin=[...EV.values()].find(e=>keyOf(e.nom)===keyOf(name)&&!isCat(e));
+  const id=newEvId(twin||part==="loc"?"ev-":"cat-");
+  const doc=twin?{nom:twin.nom,date:twin.date||null,dateFin:twin.dateFin||null,lieu:twin.lieu||"",notes:twin.notes||"",style:styleOf(twin),part,cree:new Date().toISOString()}
+    :part==="ach"?{nom:name,kind:"categorie",style:defStyle(),cree:new Date().toISOString()}
+    :{nom:name,style:defStyle(),part:"loc",cree:new Date().toISOString()};
+  events.push({_id:id,...doc});EV.set(id,{_id:id,...doc});write(id,()=>api("evenements",id,"set",doc));
+  return {_id:id,...doc};
+}
+/* Older fiches were shared by both parts. Split them once: a fiche used only by achats goes to Achat DTSE;
+   one used by both stays in Location and the achats get their own copy (same name, dates, place, look).
+   Copies get a fixed id, so two people opening the site at the same time make the same copy. */
+const splitDone=new Set();
+function splitShared(){
+  if(!evTable||!canWrite)return;
+  for(const e of [...EV.values()]){
+    if(isCat(e)||e.part||splitDone.has(e._id))continue;
+    const mine=rows.filter(r=>evKey(r)===e._id), loc=mine.some(r=>kindOf(r)==="location"), ach=mine.filter(r=>kindOf(r)==="achat");
+    if(e.virtual&&!(loc&&ach.length))continue;
+    splitDone.add(e._id);
+    if(!e.virtual&&!(loc&&ach.length)){const part=loc||!ach.length?"loc":"ach";e.part=part;const x=events.find(v=>v._id===e._id);if(x)x.part=part;write(e._id,()=>api("evenements",e._id,"update",{part}));continue}
+    if(!e.virtual){e.part="loc";const x=events.find(v=>v._id===e._id);if(x)x.part="loc";write(e._id,()=>api("evenements",e._id,"update",{part:"loc"}))}
+    const id=e._id+"-ach";
+    if(!EV.has(id)){const doc={nom:e.nom,date:e.date||null,dateFin:e.dateFin||null,lieu:e.lieu||"",notes:e.notes||"",style:styleOf(e),part:"ach",cree:new Date().toISOString()};
+      events.push({_id:id,...doc});write(id,()=>api("evenements",id,"set",doc))}
+    for(const r of ach){r.eventId=id;write(r._id,()=>api("devis",r._id,"update",{eventId:id}))}
+  }
+  buildEvents();
+}
 function fmtEvDates(ev){
   const a=dayOf(ev.date),b=dayOf(ev.dateFin);if(!a)return"";
   const f=(d,o)=>d.toLocaleDateString("fr-FR",o).replace(/\./g,"");
@@ -414,11 +450,11 @@ function paintDraft(){
   document.querySelectorAll("#evToggles .tg").forEach(b=>b.setAttribute("aria-pressed",!!draft[b.dataset.t]));
   document.querySelectorAll("#evSizes button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.z===draft.z));
 }
-let renamingCat=false;
+let renamingCat=false, renamingPart="loc";
 function openRename(id,newCat){
   const ev=id?EV.get(id):null;
   if(id&&!ev)return;
-  renaming=ev?ev._id:"";draft=styleOf(ev);renamingCat=ev?isCat(ev):!!newCat;
+  renaming=ev?ev._id:"";draft=styleOf(ev);renamingCat=ev?isCat(ev):!!newCat;renamingPart=ev?partOf(ev):space;
   const n=ev?rows.filter(r=>evKey(r)===ev._id).length:0;
   $("evTitle").textContent=renamingCat?(ev?"Fiche de la catégorie":"Nouvelle catégorie"):(ev?"Fiche de l'événement":"Nouvel événement");
   $("evDatesRow").hidden=renamingCat;$("evLieuRow").hidden=renamingCat;$("evSortHint").hidden=renamingCat;
@@ -449,8 +485,8 @@ $("evForm").addEventListener("submit",e=>{
   const date=$("evD1").value||null, dateFin=$("evD2").value||null;
   if(date&&dateFin&&dateFin<date)return evErr("La date de fin doit être après la date de début.");
   const ev=renaming?EV.get(renaming):null;
-  const other=evByName(nom);
-  if(other&&(!ev||other._id!==ev._id))return evErr(`${isCat(other)?"Une catégorie":"Un événement"} porte déjà ce nom.`);
+  const other=evByName(nom,renamingPart);
+  if(other&&(!ev||other._id!==ev._id))return evErr(`${isCat(other)?"Une catégorie":"Un événement"} porte déjà ce nom dans « ${SPACES[renamingPart].nom} ».`);
   const style={...draft};
   if(!evTable){
     // Database not updated yet: only the name and the look can be saved, on each besoin as before.
@@ -460,7 +496,7 @@ $("evForm").addEventListener("submit",e=>{
   }
   const id=ev?ev._id:(renamingCat?"cat-":"ev-")+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const doc=renamingCat?{nom,kind:"categorie",notes:$("evNotes").value.trim(),style,cree:(ev&&ev.cree)||new Date().toISOString()}
-    :{nom,date,dateFin,lieu:$("evLieu").value.trim(),notes:$("evNotes").value.trim(),style,cree:(ev&&ev.cree)||new Date().toISOString()};
+    :{nom,date,dateFin,lieu:$("evLieu").value.trim(),notes:$("evNotes").value.trim(),style,part:renamingPart,cree:(ev&&ev.cree)||new Date().toISOString()};
   if(!ev&&renamingCat)doc.style={...defStyle(),...style};
   const i=events.findIndex(x=>x._id===id);if(i>=0)events[i]={_id:id,...doc};else events.push({_id:id,...doc});
   write(id,()=>api("evenements",id,"set",doc));
@@ -513,14 +549,6 @@ function paintKind(){
   $("fHDebut2").setAttribute("aria-label",fKind==="achat"?"Livraison jusqu'à (facultatif)":"Arrivée jusqu'à (facultatif)");
 }
 $("fKind").addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(b&&canWrite){fKind=b.dataset.k;paintKind()}});
-$("list").addEventListener("click",e=>{
-  const t=e.target.closest("[data-kind]");if(!t||!canWrite)return;
-  e.stopPropagation();
-  const d=devisById(t.dataset.kind);if(!d)return;
-  const before=d.type||"location", type=kindOf(d)==="achat"?"location":"achat";
-  d.type=type;write(d._id,()=>api("devis",d._id,"update",{type}));render();
-  toast(`${pad(d.num)} ${d.objet||""} est passé dans « ${SPACES[spaceOfType(type)].nom} ».`,()=>{d.type=before;write(d._id,()=>api("devis",d._id,"update",{type:before}));render()});
-},true);
 
 /* ---------- calendrier des locations ---------- */
 let calMonth=(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),1)})();
@@ -707,16 +735,11 @@ $("baseForm").addEventListener("submit",e=>{
   const ferr=t=>{$("fErr").textContent=t;$("fErr").hidden=false};
   if(!data.evenement||!data.objet)return ferr(fKind==="achat"?"Indique l'événement ou la catégorie, et le besoin.":"Indique l'événement et le besoin.");
   {
-    const ev=evByName(data.evenement);
-    if(ev&&isCat(ev)&&fKind==="location")return ferr(`« ${ev.nom} » est une catégorie d'achats : une location se rattache à un événement.`);
-    if(ev){data.eventId=ev._id;data.evenement=ev.nom}
-    else if(fKind==="achat"&&evTable){
-      // a new name in Achat DTSE creates a category
-      const id="cat-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      const cat={nom:data.evenement,kind:"categorie",style:defStyle(),cree:new Date().toISOString()};
-      events.push({_id:id,...cat});write(id,()=>api("evenements",id,"set",cat));data.eventId=id;
-    }
-    else data.eventId=slugId(data.evenement);
+    const cat=evByName(data.evenement,"ach");
+    if(fKind==="location"&&cat&&isCat(cat)&&!evByName(data.evenement,"loc"))return ferr(`« ${cat.nom} » est une catégorie d'achats : une location se rattache à un événement.`);
+    // each part has its own fiches: a new name in Achat DTSE creates a category, in Location an event
+    const ev=ensureEv(data.evenement,spaceOfType(fKind));
+    data.eventId=ev._id;data.evenement=ev.nom;
   }
   $("fErr").hidden=true;
   if(fiche.id){
@@ -967,7 +990,7 @@ async function refresh(){
     rows=j.devis.filter(live);offres=j.offres.filter(live);events=(j.evenements||[]).filter(live);evTable=j.evTable!==false;
     const liveIds=new Set(rows.map(r=>r._id));
     trash={devis:j.devis.filter(x=>x.deleted),offres:j.offres.filter(x=>x.deleted&&liveIds.has(x.devisId)),evenements:(j.evenements||[]).filter(x=>x.deleted)};
-    gotDevis=true;render();
+    gotDevis=true;buildEvents();splitShared();render();
   }catch(err){if(err.code!=="login")showNotice(err.code==="offline"?"Pas de connexion : les derniers changements des autres ne s'affichent pas.":"Le tableau n'a pas pu se mettre à jour. Recharge la page.")}
 }
 function start(){

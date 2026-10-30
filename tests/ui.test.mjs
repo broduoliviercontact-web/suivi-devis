@@ -304,15 +304,52 @@ describe("deux parties : Location Événementielle / Achat DTSE", () => {
     assert.deepEqual(await eventNames(page), ["Consommables", "Outillage", "VOEUX DU MAIRE 06/01/27"]);
   });
 
-  test("l'étiquette ACHAT / LOCATION fait changer de partie, avec Annuler", async () => {
+  test("l'étiquette ACHAT / LOCATION n'est qu'une indication : un clic ne change rien", async () => {
     const page = await open();
-    await page.click('[data-kind="d2"]'); await page.waitForTimeout(400);
-    assert.equal(s.db.devis.get("d2").type, "achat");
-    assert.ok(!(await objets(page)).includes("Sanitaires"));
-    assert.match(await page.textContent("#toastText"), /passé dans « Achat DTSE »/);
-    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.equal(await page.locator('button.kind, [data-kind]').count(), 0);
+    await page.click('.row:has([data-open="d2"]) .kind'); await page.waitForTimeout(300);
     assert.equal(s.db.devis.get("d2").type, "location");
     assert.ok((await objets(page)).includes("Sanitaires"));
+  });
+
+  test("chaque partie a ses propres fiches d'événement", async () => {
+    const page = await open();
+    // un événement créé dans Achat DTSE n'apparaît pas dans Location Événementielle, même avec le même nom
+    await page.click("#spAch"); await page.click('[data-newev="ev"]');
+    assert.equal(await page.textContent("#evTitle"), "Nouvel événement");
+    assert.ok(await page.isVisible("#evDatesRow"));
+    await page.fill("#evName", "Ouverture de la halle"); await page.fill("#evLieu", "Réserve");
+    await page.click("#evForm button[type=submit]"); await page.waitForTimeout(500);
+    const mine = [...s.db.evenements.entries()].filter(([, e]) => e.nom === "Ouverture de la halle");
+    assert.equal(mine.length, 2, "deux fiches distinctes");
+    assert.deepEqual(mine.map(([, e]) => e.part).sort(), ["ach", "loc"]);
+    assert.ok((await eventNames(page)).includes("Ouverture de la halle"));
+    // les modifier séparément
+    await page.click('.ev-name:has-text("Ouverture de la halle")');
+    await page.fill("#evName", "Ouverture · achats"); await page.click("#evForm button[type=submit]"); await page.waitForTimeout(500);
+    await page.click("#spLoc");
+    assert.ok((await eventNames(page)).includes("Ouverture de la halle"), "la fiche Location garde son nom");
+    assert.ok(!(await eventNames(page)).includes("Ouverture · achats"));
+    assert.equal(s.db.evenements.get("ev1").lieu, "Grandes Serres");
+    // Nouveau besoin : la liste ne propose que les fiches de la partie
+    await newBesoin(page);
+    assert.ok(!(await page.$$eval("#events option", (o) => o.map((x) => x.value))).includes("Ouverture · achats"));
+  });
+
+  test("une fiche partagée par les deux parties est séparée, sans rien perdre", async () => {
+    s.seed({ devis: { d4: { num: 4, eventId: "ev1", evenement: "Ouverture de la halle", objet: "Vis", type: "achat" } } });
+    const page = await open(); await page.waitForTimeout(600);
+    assert.equal(s.db.evenements.get("ev1").part, "loc");
+    const copy = s.db.evenements.get("ev1-ach");
+    assert.ok(copy, "copie pour les achats");
+    assert.deepEqual([copy.nom, copy.date, copy.dateFin, copy.lieu, copy.part, copy.style.c], ["Ouverture de la halle", "2026-11-06", "2026-11-08", "Grandes Serres", "ach", "blue"]);
+    assert.equal(s.db.devis.get("d4").eventId, "ev1-ach");
+    assert.equal(s.db.devis.get("d1").eventId, "ev1");
+    await page.click("#spAch");
+    assert.ok((await objets(page)).includes("Vis"));
+    // ouvrir le site une deuxième fois ne refait pas de copie
+    await open(); await page.waitForTimeout(600);
+    assert.equal([...s.db.evenements.values()].filter((e) => e.nom === "Ouverture de la halle").length, 2);
   });
 
   test("calendrier commun : Tout / Locations / Livraisons", async () => {
