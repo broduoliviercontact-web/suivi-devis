@@ -1,0 +1,14 @@
+{
+  "name": "suivi-devis-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests automatiques du suivi des devis (faux Supabase local, aucune donnée réelle touchée).",
+  "scripts": {
+    "test": "node --test --test-reporter=spec api.test.mjs ui.test.mjs",
+    "test:serveur": "node --test --test-reporter=spec api.test.mjs",
+    "test:navigateur": "node --test --test-reporter=spec ui.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

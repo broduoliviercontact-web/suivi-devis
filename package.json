@@ -3,5 +3,10 @@
   "private": true,
   "type": "module",
   "description": "Suivi des devis par événement : propositions fournisseurs, versions, mémoire des prix.",
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "npm --prefix tests test"
+  }
 }
