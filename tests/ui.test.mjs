@@ -221,6 +221,50 @@ describe("achats", () => {
   });
 });
 
+describe("devis signé", () => {
+  test("joindre le devis signé : proposition retenue, « Signé » coché, trombone vers le signé", async () => {
+    const page = await open();
+    await page.click('[data-open="d1"] >> nth=0');
+    assert.equal(await page.locator("[data-sign]").count(), 2, "rien de retenu : chaque proposition peut recevoir le signé");
+    const tsf = [...s.db.offres.entries()].find(([, o]) => o.fournisseur === "TSF")[0];
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click(`[data-act="signer"][data-o="${tsf}"]`)]);
+    await chooser.setFiles({ name: "devis TSF signé.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 signé") });
+    await page.waitForSelector(".sign.has"); await page.waitForTimeout(400);
+    const o = s.db.offres.get(tsf);
+    assert.equal(o.retenue, true); assert.equal(o.signeFichierNom, "devis TSF signé.pdf");
+    assert.equal(s.files.get(o.signeFichierId).body.toString(), "%PDF-1.4 signé");
+    assert.equal(s.db.devis.get("d1").signe, true);
+    assert.equal(await page.locator("[data-sign]").count(), 0, "une fois retenue, seule elle a le devis signé");
+    assert.match(await page.textContent("#toastText"), /« Signé » coché/);
+    await page.click("#closeBtn");
+    assert.equal(await page.getAttribute('.row:has([data-open="d1"]) .clip', "href"), `/api/file?p=${o.signeFichierId}`);
+    assert.match(await page.textContent('.row:has([data-open="d1"]) .clip'), /Signé/);
+    // Annuler remet tout comme avant
+    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.equal(s.db.offres.get(tsf).signeFichierId, null); assert.equal(s.db.offres.get(tsf).retenue, false);
+    assert.equal(s.db.devis.get("d1").signe, false);
+  });
+
+  test("achat : glisser le devis signé coche « Commandé » ; retirer le signé", async () => {
+    s.seed({ offres: { o3: { devisId: "d3", fournisseur: "Leroy", montant: 40, version: 1, retenue: true, cree: "2026-10-27T10:00:00Z" } } });
+    const page = await open();
+    await page.click("#spAch"); await page.click('[data-open="d3"] >> nth=0');
+    await page.evaluate(() => {
+      const dt = new DataTransfer(); dt.items.add(new File(["img"], "commande.jpg", { type: "image/jpeg" }));
+      const z = document.querySelector('[data-sign="o3"]');
+      z.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+      z.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await page.waitForSelector(".sign.has"); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").commande, true);
+    assert.equal(s.db.offres.get("o3").signeFichierNom, "commande.jpg");
+    await page.click('[data-act="designer"]'); await page.click('[data-act="designer"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.offres.get("o3").signeFichierId, null);
+    assert.equal(s.db.devis.get("d3").commande, true, "la case reste cochée");
+    assert.equal(await page.locator('[data-sign="o3"]').count(), 1);
+  });
+});
+
 describe("créneaux horaires", () => {
   test("arrivée, reprise et livraison en fourchette (de 10h à 18h)", async () => {
     const page = await open();

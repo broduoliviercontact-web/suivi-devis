@@ -512,3 +512,14 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
   .checks .ck svg{display:none}
   .checks .ck[aria-pressed="true"]{font-weight:700;box-shadow:inset 0 -2px 0 var(--on)}
 }
+
+/* devis signé */
+.sign{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;border:1px dashed var(--line);border-radius:3px;font-size:.86rem}
+.sign.has{border-style:solid;border-color:color-mix(in srgb,var(--green) 45%,var(--line));background:color-mix(in srgb,var(--green) 7%,transparent)}
+.sign.drop.over{border-color:var(--fg);background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.sign-ok{font-weight:700;color:var(--green)}
+.sign .muted{color:var(--muted);font-size:.8rem}
+.sign-acts{display:flex;gap:6px;margin-left:auto}
+.sign-msg:empty{display:none}
+.sign-msg{font-size:.8rem;color:var(--muted)}.sign-msg.err{color:var(--red)}
+.clip.signed,.sr-links a.signed{color:var(--green);border-color:color-mix(in srgb,var(--green) 50%,transparent);font-weight:600}

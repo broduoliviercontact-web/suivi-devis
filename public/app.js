@@ -149,7 +149,7 @@ function subRows(d){
       <span class="sr-price">${o.montant!=null?eur(o.montant):"—"}</span>
       ${gap||"<span></span>"}
       <span class="sr-det" title="${esc(rest)}">${esc(rest)}</span>
-      <span class="sr-links">${o.fichierId?`<a href="/api/file?p=${esc(o.fichierId)}" target="_blank" rel="noopener">${CLIP}${esc(ext(o.fichierNom))}</a>`:""}${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(url))} ↗</a>`:""}</span>
+      <span class="sr-links">${o.signeFichierId?`<a class="signed" href="/api/file?p=${esc(o.signeFichierId)}" target="_blank" rel="noopener">${CLIP}Signé</a>`:""}${o.fichierId?`<a href="/api/file?p=${esc(o.fichierId)}" target="_blank" rel="noopener">${CLIP}${esc(ext(o.fichierNom))}</a>`:""}${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(url))} ↗</a>`:""}</span>
     </div>`;
   }).join("")+`</div>`;
 }
@@ -162,7 +162,9 @@ function offerCell(d){
   return `<span class="many" title="${esc(groups.map(g=>g.latest.fournisseur).join(", "))}">${groups.length} propositions</span>${prices.length?" · dès "+eur(Math.min(...prices)):""}`;
 }
 function rowFile(d){
-  const r=retained(d._id); if(r&&r.fichierId) return r;
+  const r=retained(d._id);
+  if(r&&r.signeFichierId) return {fichierId:r.signeFichierId,fichierNom:r.signeFichierNom,signe:true};
+  if(r&&r.fichierId) return r;
   const g=supplierGroups(d._id); if(g.length===1&&g[0].latest.fichierId) return g[0].latest;
   return null;
 }
@@ -197,7 +199,7 @@ function renderEvents(){
       html+=`<div class="row"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
         `<span class="kind ${kindOf(d)==="achat"?"ach":"loc"}">${kindOf(d)==="achat"?"Achat":"Location"}</span>`+
-        (f?`<a class="clip" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${esc(f.fichierNom||"le devis")}">${CLIP}${esc(ext(f.fichierNom))}</a>`:"")+
+        (f?`<a class="clip${f.signe?" signed":""}" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${f.signe?"le devis signé":esc(f.fichierNom||"le devis")}">${CLIP}${f.signe?"Signé":esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,[d.hDebut,d.hDebut2],[d.hFin,d.hFin2],true)}</span>`:kindOf(d)==="achat"&&d.debut?`<span class="dates">${fmtLiv(d,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
         SP.steps.map(([k,l,sh])=>ck(d,k,l,false,sh)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
@@ -697,6 +699,7 @@ function renderProps(d){
       <div class="o-top"><span class="o-four">${esc(o.fournisseur)}</span><span class="vbadge">V${o.version||1}</span>${isRet?'<span class="rbadge">✓ Retenue</span>':""}<span class="o-price">${eur(o.montant)||"Prix à venir"}</span></div>
       ${o.detail?`<div class="o-det">${linkifyShort(o.detail)}</div>`:""}
       <div class="o-meta">${o.ref?`<span>Réf. ${esc(o.ref)}</span>`:""}<span>${day(o.cree)}</span>${fileLink(o.fichierId,o.fichierNom,"Ouvrir le "+ext(o.fichierNom))}</div>
+      ${signBlock(o,isRet,groups.some(x=>x.retenue))}
       ${g.olds.length?`<div class="olds">${g.olds.map(v=>`<div><s>V${v.version||1}</s><span>${eur(v.montant)||"—"}</span><span>${day(v.cree)}</span>${fileLink(v.fichierId,v.fichierNom,ext(v.fichierNom))}${v.retenue?'<span class="yes">✓ retenue</span>':""}</div>`).join("")}</div>`:""}
       ${canWrite?`<div class="o-acts">
         <button type="button" class="ghost sm" data-act="retenir" data-o="${esc(o._id)}">${isRet?"Ne plus retenir":"Retenir"}</button>
@@ -706,6 +709,49 @@ function renderProps(d){
     </div>`;
   }).join("");
 }
+/* ---------- devis signé ----------
+   Le PDF (ou la photo) du devis retourné signé se joint à la proposition retenue.
+   Location : coche « Signé ». Achat : coche « Commandé ». */
+function signBlock(o,isRet,anyRet){
+  const d=devisById(o.devisId), step=d&&kindOf(d)==="achat"?"Commandé":"Signé";
+  if(o.signeFichierId)return `<div class="sign has"><span class="sign-ok">✓ Devis signé</span>${fileLink(o.signeFichierId,o.signeFichierNom,"Ouvrir le "+ext(o.signeFichierNom)+" signé")}<span class="muted">${day(o.signeLe)}</span>
+    ${canWrite?`<span class="sign-acts"><button type="button" class="ghost sm" data-act="signer" data-o="${esc(o._id)}">Remplacer</button><button type="button" class="danger" data-act="designer" data-o="${esc(o._id)}">Retirer</button></span>`:""}</div>`;
+  if(!canWrite||(anyRet&&!isRet))return "";
+  return `<div class="sign drop" data-sign="${esc(o._id)}"><button type="button" class="ghost sm" data-act="signer" data-o="${esc(o._id)}">Joindre le devis signé</button><span class="muted">PDF ou photo · ou glisse le fichier ici${isRet?"":" · la proposition sera retenue"} · « ${step} » sera coché</span><span class="sign-msg" role="status"></span></div>`;
+}
+let signTarget=null;
+async function attachSigned(o,file){
+  const box=document.querySelector(`[data-sign="${CSS.escape(o._id)}"] .sign-msg`);
+  if(box)box.textContent="Envoi…";
+  let up;
+  try{up=await assets.upload(file)}catch(err){
+    const m=err.code==="unsupported_type"?"Envoie un PDF ou une image (JPG, PNG).":err.code==="too_large"?"Fichier trop lourd (20 Mo maximum).":"L'envoi n'a pas marché. Réessaie.";
+    if(box){box.textContent=m;box.classList.add("err")}else toast(m);return;
+  }
+  const d=devisById(o.devisId);if(!d)return;
+  const key=kindOf(d)==="achat"?"commande":"signe";
+  const before={o:{signeFichierId:o.signeFichierId||null,signeFichierNom:o.signeFichierNom||null,signeLe:o.signeLe||null},d:{[key]:!!d[key]},ret:offersOf(d._id).map(x=>[x,!!x.retenue])};
+  const patch={signeFichierId:up.id,signeFichierNom:file.name,signeLe:new Date().toISOString()};
+  for(const x of offersOf(d._id)){const want=x._id===o._id;if(!!x.retenue!==want){x.retenue=want;write(x._id,()=>api("offres",x._id,"update",{retenue:want}))}}
+  Object.assign(o,patch);write(o._id,()=>api("offres",o._id,"update",patch));
+  if(!d[key]){d[key]=true;write(d._id,()=>api("devis",d._id,"update",{[key]:true}))}
+  render();
+  toast(`Devis signé ajouté · « ${key==="signe"?"Signé":"Commandé"} » coché.`,()=>{
+    Object.assign(o,before.o);write(o._id,()=>api("offres",o._id,"update",before.o));
+    for(const [x,r] of before.ret)if(!!x.retenue!==r){x.retenue=r;write(x._id,()=>api("offres",x._id,"update",{retenue:r}))}
+    if(d[key]!==before.d[key]){d[key]=before.d[key];write(d._id,()=>api("devis",d._id,"update",before.d))}
+    render();
+  });
+}
+$("signFile").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f&&signTarget)attachSigned(signTarget,f)});
+$("propList").addEventListener("dragover",e=>{const z=e.target.closest("[data-sign]");if(z&&canWrite){e.preventDefault();z.classList.add("over")}});
+$("propList").addEventListener("dragleave",e=>{const z=e.target.closest("[data-sign]");if(z)z.classList.remove("over")});
+$("propList").addEventListener("drop",e=>{
+  const z=e.target.closest("[data-sign]");if(!z||!canWrite)return;
+  e.preventDefault();z.classList.remove("over");
+  const o=offres.find(x=>x._id===z.dataset.sign),f=e.dataTransfer.files[0];
+  if(o&&f)attachSigned(o,f);
+});
 function renderMem(){
   const objet=fiche.id?devisById(fiche.id)?.objet:$("fObjet").value;
   const k=keyOf(objet);
@@ -875,6 +921,14 @@ $("propList").addEventListener("click",e=>{
   const b=e.target.closest("[data-act]");if(!b||!canWrite)return;
   const o=offres.find(x=>x._id===b.dataset.o);if(!o)return;
   const act=b.dataset.act;
+  if(act==="signer"){signTarget=o;$("signFile").click();return}
+  if(act==="designer"){
+    if(!b.dataset.armed){b.dataset.armed="1";b.textContent="Confirmer";return}
+    const before={signeFichierId:o.signeFichierId,signeFichierNom:o.signeFichierNom,signeLe:o.signeLe}, clear={signeFichierId:null,signeFichierNom:null,signeLe:null};
+    Object.assign(o,clear);write(o._id,()=>api("offres",o._id,"update",clear));render();
+    toast("Devis signé retiré (la case reste cochée).",()=>{Object.assign(o,before);write(o._id,()=>api("offres",o._id,"update",before));render()});
+    return;
+  }
   if(act==="version")return openOffer({kind:"version",offre:o});
   if(act==="edit")return openOffer({kind:"edit",offre:o});
   if(act==="retenir"){
@@ -949,15 +1003,15 @@ function download(name,content,type){
 const stamp=()=>isoOf(new Date());
 function exportRows(){
   const yes=b=>b?"oui":"";
-  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Jusqu'à","Reprise","Heure reprise","Reprise jusqu'à","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF"];
+  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Jusqu'à","Reprise","Heure reprise","Reprise jusqu'à","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF","Devis signé"];
   const lines=[head];
   for(const d of [...rows].sort((a,b)=>(kindOf(a)>kindOf(b)?-1:kindOf(a)<kindOf(b)?1:0)||evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
     const ev=evObj(d), loc=kindOf(d)==="location";
     const b=[pad(d.num),SPACES[spaceOfType(d.type)].nom,ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",d.debut||"",d.hDebut||"",d.hDebut2||"",loc?d.fin||"":"",loc?d.hFin||"":"",loc?d.hFin2||"":"",
       loc?yes(d.aEnvoyer):"",loc?yes(d.envoye):"",loc?yes(d.signe):"",loc?"":yes(d.demande),loc?"":yes(d.commande),loc?"":yes(d.livre),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
     const os=offersOf(d._id).sort((x,y)=>keyOf(x.fournisseur).localeCompare(keyOf(y.fournisseur))||(x.version||1)-(y.version||1));
-    if(!os.length)lines.push([...b,"","","","","","",""]);
-    for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:""]);
+    if(!os.length)lines.push([...b,"","","","","","","",""]);
+    for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:"",o.signeFichierId?`${location.origin}/api/file?p=${o.signeFichierId}`:""]);
   }
   return lines;
 }
