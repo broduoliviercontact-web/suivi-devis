@@ -196,9 +196,9 @@ function renderEvents(){
     html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${SP.steps.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
-      html+=`<div class="row"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
+      html+=`<div class="row st ${cls}"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
-        `<span class="kind ${kindOf(d)==="achat"?"ach":"loc"}">${kindOf(d)==="achat"?"Achat":"Location"}</span>`+
+        `<span class="kind ${kindOf(d)==="achat"?"ach":"loc"}">${kindOf(d)==="achat"?"Achat":"Location"}</span>`+`<span class="st-pill">${lab}</span>`+
         (f?`<a class="clip${f.signe?" signed":""}" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${f.signe?"le devis signé":esc(f.fichierNom||"le devis")}">${CLIP}${f.signe?"Signé":esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,[d.hDebut,d.hDebut2],[d.hFin,d.hFin2],true)}</span>`:kindOf(d)==="achat"&&d.debut?`<span class="dates">${fmtLiv(d,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+

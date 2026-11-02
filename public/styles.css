@@ -523,3 +523,12 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
 .sign-msg:empty{display:none}
 .sign-msg{font-size:.8rem;color:var(--muted)}.sign-msg.err{color:var(--red)}
 .clip.signed,.sr-links a.signed{color:var(--green);border-color:color-mix(in srgb,var(--green) 50%,transparent);font-weight:600}
+
+/* code couleur des statuts : ligne teintée + étiquette (mêmes couleurs que la légende) */
+.row.st{--st:var(--grey)}
+.row.st.s-aenv{--st:var(--red)}.row.st.s-env{--st:var(--orange)}.row.st.s-sig{--st:var(--blue)}.row.st.s-pay{--st:var(--green)}
+.row.st:not(.s-prep){background:color-mix(in srgb,var(--st) 11%,var(--surface))}
+.row.st.s-prep{background:var(--surface)}
+.st-pill{flex:none;display:inline-block;font:700 .62rem/1 var(--body);letter-spacing:.05em;text-transform:uppercase;padding:3px 6px;border-radius:3px;color:color-mix(in srgb,var(--st) 80%,var(--fg));background:var(--surface);border:1px solid color-mix(in srgb,var(--st) 55%,transparent);white-space:nowrap}
+.row.st:hover{background:color-mix(in srgb,var(--st) 19%,var(--surface))}
+.row.st.s-prep:hover{background:var(--hover)}

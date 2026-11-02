@@ -221,6 +221,19 @@ describe("achats", () => {
   });
 });
 
+describe("code couleur des statuts", () => {
+  test("ligne teintée et étiquette selon l'avancement", async () => {
+    const page = await open();
+    assert.ok(await page.$eval('.row:has([data-open="d1"])', (r) => r.classList.contains("s-aenv")));
+    assert.equal((await page.textContent('.row:has([data-open="d1"]) .st-pill')).trim(), "À envoyer");
+    const bg = () => page.$eval('.row:has([data-open="d1"])', (r) => getComputedStyle(r).backgroundColor);
+    const before = await bg();
+    await page.click('.ck[data-id="d1"][data-k="envoye"]'); await page.click('.ck[data-id="d1"][data-k="signe"]'); await page.mouse.move(0, 0); await page.waitForTimeout(300);
+    assert.equal((await page.textContent('.row:has([data-open="d1"]) .st-pill')).trim(), "Signé, à payer");
+    assert.notEqual(await bg(), before);
+  });
+});
+
 describe("devis signé", () => {
   test("joindre le devis signé : proposition retenue, « Signé » coché, trombone vers le signé", async () => {
     const page = await open();
