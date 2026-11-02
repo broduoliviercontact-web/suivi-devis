@@ -274,6 +274,26 @@ describe("déplacer une ligne (glisser la poignée)", () => {
     await page.click('[data-grip="d3"]'); await page.waitForTimeout(200);
     assert.equal(s.db.devis.get("d3").eventId, "c1");
   });
+  test("changer l'ordre des catégories en les glissant, avec Annuler", async () => {
+    s.seed({ evenements: { ca: { nom: "Consommables", kind: "categorie", style: ST("grey") }, cb: { nom: "Outillage", kind: "categorie", style: ST("grey") }, cc: { nom: "Visserie", kind: "categorie", style: ST("grey") } } });
+    const page = await open();
+    await page.click("#spAch");
+    const cats = () => page.$$eval("section.event .ev-name.is-cat", (e) => e.map((x) => x.textContent.trim()));
+    assert.deepEqual(await cats(), ["Consommables", "Outillage", "Visserie"]);
+    await page.dragAndDrop('[data-catgrip="cc"]', 'section[data-evid="ca"]', { targetPosition: { x: 20, y: 4 } });
+    await page.waitForTimeout(400);
+    assert.deepEqual(await cats(), ["Visserie", "Consommables", "Outillage"]);
+    assert.deepEqual(["cc", "ca", "cb"].map((k) => s.db.evenements.get(k).ordre), [10, 20, 30]);
+    assert.ok((await page.$$eval("section.event .ev-name", (e) => e.map((x) => x.textContent.trim()))).at(-1).startsWith("VOEUX"), "les événements restent après les catégories");
+    // en dessous
+    await page.dragAndDrop('[data-catgrip="cc"]', 'section[data-evid="cb"]', { targetPosition: { x: 20, y: 60 } });
+    await page.waitForTimeout(400);
+    assert.deepEqual(await cats(), ["Consommables", "Outillage", "Visserie"]);
+    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.deepEqual(await cats(), ["Visserie", "Consommables", "Outillage"]);
+    await page.reload(); await page.waitForSelector("[data-open]");
+    assert.deepEqual(await cats(), ["Visserie", "Consommables", "Outillage"], "l'ordre est enregistré pour tout le monde");
+  });
   test("pas de poignée sur iPhone", async () => {
     const page = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     assert.ok(await page.isHidden('[data-grip="d1"]'));

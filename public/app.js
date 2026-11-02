@@ -186,7 +186,7 @@ function renderEvents(){
   const newEv=canWrite?`<div class="new-evs">${ach?`<button type="button" class="new-ev" data-newev="cat">+ Nouvelle catégorie</button>`:""}<button type="button" class="new-ev" data-newev="ev">+ Nouvel événement</button></div>`:"";
   if(!groups.size){list.innerHTML=(sr.length?`<div class="empty-state">Rien dans ce filtre. Tout est à jour.</div>`:`<div class="empty-state">${ach?"Aucun achat pour l'instant. Ajoute le premier avec « + Nouveau besoin »":"Aucun devis pour l'instant. Ajoute le premier avec « + Nouveau besoin »"}.</div>`)+(f==="tous"?newEv:"");return}
   // Achat: categories first (A→Z), then events by date. Location: events by date.
-  const ordered=[...groups].map(([k,items])=>[EV.get(k)||{_id:k,nom:k},items]).sort((a,b)=>(isCat(b[0])-isCat(a[0]))||(isCat(a[0])?0:evTime(a[0])-evTime(b[0]))||String(a[0].nom).localeCompare(String(b[0].nom),"fr"));
+  const ordered=[...groups].map(([k,items])=>[EV.get(k)||{_id:k,nom:k},items]).sort((a,b)=>(isCat(b[0])-isCat(a[0]))||(isCat(a[0])?catCmp(a[0],b[0]):evTime(a[0])-evTime(b[0])||String(a[0].nom).localeCompare(String(b[0].nom),"fr")));
   let html="";
   for(const [ev,items] of ordered){
     const all=sr.filter(r=>evKey(r)===ev._id), cat=isCat(ev);
@@ -195,7 +195,7 @@ function renderEvents(){
     const tot=all.map(r=>retained(r._id)).filter(o=>o&&o.montant!=null).reduce((s,o)=>s+o.montant,0);
     const st=styleOf(ev), when=fmtEvDates(ev);
     const meta=[when,ev.lieu].filter(Boolean).map(esc).join(" · ");
-    html+=`<section class="event" data-evid="${esc(ev._id)}"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}${cat?" is-cat":""}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche ${cat?"de la catégorie":"de l'événement"}" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} ${unit}${all.length>1?"s":""} · ${sig} ${done}${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
+    html+=`<section class="event" data-evid="${esc(ev._id)}"><div class="ev-head">${cat&&canWrite&&!ev.virtual?`<span class="grip cat-grip" draggable="true" data-catgrip="${esc(ev._id)}" title="Glisser pour changer l'ordre des catégories" aria-hidden="true">⠿</span>`:""}<button type="button" class="tape ev-name ${evClass(st)}${cat?" is-cat":""}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche ${cat?"de la catégorie":"de l'événement"}" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} ${unit}${all.length>1?"s":""} · ${sig} ${done}${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
     if(!items.length){html+=`<div class="sheet ev-empty">${ach?"Aucun achat":"Aucun besoin"} pour l'instant.${canWrite?` <button type="button" class="linkish" data-addev="${esc(ev.nom)}">Ajouter le premier</button>`:""}</div></section>`;continue}
     html+=`<div class="sheet">`;
     html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${SP.steps.map(s=>`<div>${s[1]}</div>`).join("")}<div></div><div class="pay-h"><span class="pay-t">Paiement</span><span class="pay-c">${FACT.map(s=>`<span>${s[1]}</span>`).join("")}</span></div></div>`;
@@ -397,6 +397,8 @@ function buildEvents(){
   EV=m;
 }
 const isCat=e=>!!e&&e.kind==="categorie";
+// Categories: the order chosen by hand (field « ordre »), then A→Z for those never moved.
+const catCmp=(a,b)=>{const x=a.ordre??Infinity,y=b.ordre??Infinity;return (x===y?0:x<y?-1:1)||String(a.nom).localeCompare(String(b.nom),"fr")};
 /* Each part has its own fiches: a category is always Achat DTSE; an event has part "loc" or "ach".
    A virtual event (old besoins without fiche) belongs to the part of its besoins. */
 const partOf=e=>isCat(e)?"ach":e&&e.part?e.part:e&&e.virtual?(rows.some(r=>evKey(r)===e._id&&kindOf(r)==="location")?"loc":"ach"):"loc";
@@ -562,15 +564,46 @@ $("fKind").addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(
 
 /* ---------- déplacer une ligne : glisser la poignée ⠿ sur un autre événement / une autre catégorie ----------
    Ordinateur seulement ; seule la poignée se glisse, un clic ailleurs sur la ligne ne déplace rien. */
-let dragId=null;
+let dragId=null, dragCat=null;
 const dropZone=e=>{const z=e.target.closest&&e.target.closest("section.event[data-evid]");return z&&$("list").contains(z)?z:null};
 $("list").addEventListener("dragstart",e=>{
+  const cg=e.target.closest&&e.target.closest("[data-catgrip]");
+  if(cg&&canWrite){
+    dragCat=cg.dataset.catgrip;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",dragCat);
+    const sec=cg.closest("section.event");if(sec){sec.classList.add("dragging");try{e.dataTransfer.setDragImage(cg.parentNode,20,16)}catch(_){}}
+    document.body.classList.add("is-dragging-cat");return;
+  }
   const g=e.target.closest&&e.target.closest("[data-grip]");if(!g||!canWrite){return}
   dragId=g.dataset.grip;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",dragId);
   const row=g.closest(".row");if(row){row.classList.add("dragging");try{e.dataTransfer.setDragImage(row,20,16)}catch(_){}}
   document.body.classList.add("is-dragging");
 });
-$("list").addEventListener("dragend",()=>{dragId=null;document.body.classList.remove("is-dragging");document.querySelectorAll(".dragging,.drop-over").forEach(x=>x.classList.remove("dragging","drop-over"))});
+const clearDrag=()=>{dragId=null;dragCat=null;document.body.classList.remove("is-dragging","is-dragging-cat");document.querySelectorAll(".dragging,.drop-over,.drop-before,.drop-after").forEach(x=>x.classList.remove("dragging","drop-over","drop-before","drop-after"))};
+$("list").addEventListener("dragend",clearDrag);
+// category being dragged: drop above or below another category (by the half of it under the mouse)
+const catTarget=e=>{const z=dropZone(e);if(!z||!isCat(EV.get(z.dataset.evid)))return null;const r=z.getBoundingClientRect();return {z,after:e.clientY>r.top+r.height/2}};
+$("list").addEventListener("dragover",e=>{
+  if(!dragCat)return;const t=catTarget(e);if(!t)return;
+  e.preventDefault();e.dataTransfer.dropEffect="move";
+  document.querySelectorAll(".drop-before,.drop-after").forEach(x=>x.classList.remove("drop-before","drop-after"));
+  if(t.z.dataset.evid!==dragCat)t.z.classList.add(t.after?"drop-after":"drop-before");
+});
+$("list").addEventListener("drop",e=>{
+  if(!dragCat)return;const t=catTarget(e);const id=dragCat;clearDrag();if(!t)return;
+  e.preventDefault();moveCat(id,t.z.dataset.evid,t.after);
+});
+function moveCat(id,targetId,after){
+  if(id===targetId)return;
+  const cats=[...EV.values()].filter(e=>isCat(e)&&!e.virtual).sort(catCmp);
+  const moving=cats.find(c=>c._id===id);if(!moving)return;
+  const list=cats.filter(c=>c._id!==id);let i=list.findIndex(c=>c._id===targetId);if(i<0)return;
+  list.splice(after?i+1:i,0,moving);
+  const before=new Map(cats.map(c=>[c._id,c.ordre??null]));
+  const setOrdre=(c,v)=>{const ev=events.find(x=>x._id===c);if(ev)ev.ordre=v;write(c,()=>api("evenements",c,"update",{ordre:v}))};
+  list.forEach((c,k)=>{const v=(k+1)*10;if(c.ordre!==v)setOrdre(c._id,v)});
+  render();
+  toast(`Catégorie « ${moving.nom} » déplacée.`,()=>{for(const [c,v] of before){const ev=events.find(x=>x._id===c);if(ev&&(ev.ordre??null)!==v)setOrdre(c,v)}render()});
+}
 $("list").addEventListener("dragover",e=>{
   if(!dragId)return;const z=dropZone(e);if(!z)return;
   e.preventDefault();e.dataTransfer.dropEffect="move";
@@ -1071,7 +1104,7 @@ let pending=0, refreshTimer=null, started=false;
 // (writeGen moved) and another one follows once all changes are saved.
 let writeGen=0;
 async function refresh(){
-  if(pending||dragId)return;
+  if(pending||dragId||dragCat)return;
   const gen=writeGen;
   try{
     const j=await call("/api/data");
