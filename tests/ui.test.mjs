@@ -234,6 +234,25 @@ describe("code couleur des statuts", () => {
   });
 });
 
+describe("paiement et lignes terminées", () => {
+  test("en-tête « Paiement » (SB, Validé, Envoyé) ; ligne barrée quand tout est bon", async () => {
+    const page = await open();
+    assert.equal((await page.textContent(".row.th .pay-t")).trim(), "Paiement");
+    assert.deepEqual(await page.$eval(".row.th", (r) => [...r.querySelectorAll(".pay-c span")].map((x) => x.textContent)), ["SB", "Validé", "Envoyé"]);
+    const row = '.row:has([data-open="d1"])';
+    for (const k of ["envoye", "signe", "paye", "factRecue"]) await page.click(`.ck[data-id="d1"][data-k="${k}"]`);
+    await page.waitForTimeout(300);
+    assert.ok(!(await page.$eval(row, (r) => r.classList.contains("s-done"))), "pas encore : paiement pas envoyé");
+    await page.click('.ck[data-id="d1"][data-k="factEnvoyee"]'); await page.waitForTimeout(300);
+    assert.equal(await page.$eval(row, (r) => r.className), "row st s-done");
+    assert.equal((await page.textContent(`${row} .st-pill`)).trim(), "Terminé");
+    assert.match(await page.$eval(`${row} .obj`, (e) => getComputedStyle(e).textDecorationLine), /line-through/);
+    // stand-by : plus terminé
+    await page.click('.ck[data-id="d1"][data-k="factSB"]'); await page.waitForTimeout(300);
+    assert.ok(!(await page.$eval(row, (r) => r.classList.contains("s-done"))));
+  });
+});
+
 describe("devis signé", () => {
   test("joindre le devis signé : proposition retenue, « Signé » coché, trombone vers le signé", async () => {
     const page = await open();
@@ -324,11 +343,12 @@ describe("deux parties : Location Événementielle / Achat DTSE", () => {
     await page.click("#spAch");
     assert.equal(await page.textContent("#tabEv"), "Achats");
     assert.deepEqual(await objets(page), ["Gaffer"]);
-    assert.deepEqual(await page.$$eval(".row.th >> nth=0", (r) => [...r[0].children].slice(3, 7).map((c) => c.textContent)), ["Devis demandé", "Commandé", "Livré", "Payé"]);
-    assert.deepEqual(await page.$$eval("#filters button", (b) => b.map((x) => x.firstChild.textContent)), ["Tous", "Devis en attente", "À livrer", "À payer", "Factures en attente"]);
+    assert.deepEqual(await page.$$eval(".row.th >> nth=0", (r) => [...r[0].children].slice(3, 7).map((c) => c.textContent)), ["Devis demandé", "Commandé", "Payé", "Livré"]);
+    assert.deepEqual(await page.$$eval("#filters button", (b) => b.map((x) => x.firstChild.textContent)), ["Tous", "Devis en attente", "À payer", "À livrer", "Paiement à valider"]);
     await page.click('.ck[data-id="d3"][data-k="commande"]'); await page.waitForTimeout(400);
     assert.equal(s.db.devis.get("d3").commande, true);
     assert.equal(await page.textContent('#filters [data-f="livrer"] .n'), "1");
+    assert.equal(await page.textContent('#filters [data-f="apayer"] .n'), "1");
     await page.reload(); await page.waitForSelector("[data-open]");
     assert.equal(await page.getAttribute("#spAch", "aria-pressed"), "true", "la partie choisie est retenue");
     assert.match(page.url(), /#achats$/);

@@ -532,3 +532,16 @@ button,a,input,label{-webkit-tap-highlight-color:transparent}
 .st-pill{flex:none;display:inline-block;font:700 .62rem/1 var(--body);letter-spacing:.05em;text-transform:uppercase;padding:3px 6px;border-radius:3px;color:color-mix(in srgb,var(--st) 80%,var(--fg));background:var(--surface);border:1px solid color-mix(in srgb,var(--st) 55%,transparent);white-space:nowrap}
 .row.st:hover{background:color-mix(in srgb,var(--st) 19%,var(--surface))}
 .row.st.s-prep:hover{background:var(--hover)}
+
+/* en-tête « Paiement » au-dessus de SB / Validé / Envoyé */
+.row.th>div.pay-h{grid-column:span 3;flex-direction:column;align-items:stretch;padding:0}
+.pay-t{display:block;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;padding:3px 0 2px;border-bottom:1px solid var(--line)}
+.pay-c{display:grid;grid-template-columns:repeat(3,1fr);flex:1}
+.pay-c>span{display:flex;align-items:center;justify-content:center;padding:4px 2px}
+.pay-c>span+span{border-left:1px solid var(--line)}
+/* ligne terminée : barrée et éteinte */
+.row.st.s-done{--st:var(--grey);background:color-mix(in srgb,var(--fg) 4%,var(--surface))}
+.row.st.s-done .obj,.row.st.s-done .offc .oc,.row.st.s-done>.offc{text-decoration:line-through;text-decoration-thickness:1.5px;color:var(--muted)}
+.row.st.s-done .num,.row.st.s-done .dates,.row.st.s-done .kind{opacity:.6}
+.row.st.s-done .st-pill{color:var(--muted)}
+.dot.s-done{background:linear-gradient(var(--grey),var(--grey)) center/100% 1.5px no-repeat;box-shadow:inset 0 0 0 1.5px var(--grey)}

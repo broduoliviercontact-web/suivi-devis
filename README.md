@@ -1,6 +1,6 @@
 # Suivi des devis
 
-Site de suivi des devis par événement : besoins, propositions des fournisseurs (concurrence et versions V1, V2…), étapes à cocher, factures et mémoire des prix.
+Site de suivi des devis par événement : besoins, propositions des fournisseurs (concurrence et versions V1, V2…), étapes à cocher, paiement et mémoire des prix. Chaque ligne prend la couleur de son statut ; quand tout est coché (paiement validé et envoyé, sans stand-by), elle est barrée « Terminé ».
 
 - **Page** : `public/index.html`
 - **Serveur** : `api/` (fonctions Vercel, sans dépendance à installer)
@@ -36,8 +36,8 @@ Pour changer le mot de passe plus tard, il suffit de modifier `APP_PASSWORD` dan
 - **29/10/2026** : `supabase/migration-2.sql` (fiches événement, numéros de besoin attribués par la base). À exécuter une fois dans **SQL Editor**. Sans elle, le site fonctionne mais sans dates, lieu ni notes d'événement.
 
 ## Les deux parties
-- **Location Événementielle** : les locations, rangées par événement. Étapes : À envoyer → Envoyé → Signé → Payé, puis factures.
-- **Achat DTSE** : les achats, rangés par **catégorie** (Consommables, Outillage…) ou par événement. Étapes : Devis demandé → Commandé → Livré → Payé, puis factures. Livraison : une date et une heure, sans reprise.
+- **Location Événementielle** : les locations, rangées par événement. Étapes : À envoyer → Envoyé → Signé → Payé, puis **Paiement** (SB = stand-by, Validé, Envoyé).
+- **Achat DTSE** : les achats, rangés par **catégorie** (Consommables, Outillage…) ou par événement. Étapes : Devis demandé → Commandé → Payé → Livré, puis **Paiement** (SB, Validé, Envoyé). Livraison : une date et une heure, sans reprise.
 - Le type se choisit dans la fenêtre « Nouveau besoin » (réglé par défaut sur la partie ouverte) ; changer le type fait passer le besoin dans l'autre partie.
 - Communs aux deux : calendrier (filtre Tout / Locations / Livraisons), mémoire des prix (Tout / Locations / Achats), corbeille, export, sauvegarde.
 - Liens directs : `/#locations` et `/#achats`.

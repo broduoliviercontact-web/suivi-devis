@@ -3,14 +3,15 @@
 const SPACES={
   loc:{type:"location",nom:"Location Événementielle",tab:"Événements",
     steps:[["aEnvoyer","À envoyer"],["envoye","Envoyé"],["signe","Signé"],["paye","Payé"]],
-    filters:[["tous","Tous"],["relancer","À relancer"],["payer","À payer"],["factures","Factures en attente"]],
-    legend:[["s-prep","À préparer"],["s-aenv","À envoyer"],["s-env","Envoyé, en attente de signature"],["s-sig","Signé, à payer"],["s-pay","Payé"]]},
+    filters:[["tous","Tous"],["relancer","À relancer"],["payer","À payer"],["factures","Paiement à valider"]],
+    legend:[["s-prep","À préparer"],["s-aenv","À envoyer"],["s-env","Envoyé, en attente de signature"],["s-sig","Signé, à payer"],["s-pay","Payé"],["s-done","Terminé (barré)"]]},
   ach:{type:"achat",nom:"Achat DTSE",tab:"Achats",
-    steps:[["demande","Devis demandé","Demandé"],["commande","Commandé"],["livre","Livré"],["paye","Payé"]],
-    filters:[["tous","Tous"],["attente","Devis en attente"],["livrer","À livrer"],["apayer","À payer"],["factures","Factures en attente"]],
-    legend:[["s-prep","À préparer"],["s-aenv","Devis demandé"],["s-env","Commandé, à livrer"],["s-sig","Livré, à payer"],["s-pay","Payé"]]},
+    steps:[["demande","Devis demandé","Demandé"],["commande","Commandé"],["paye","Payé"],["livre","Livré"]],
+    filters:[["tous","Tous"],["attente","Devis en attente"],["apayer","À payer"],["livrer","À livrer"],["factures","Paiement à valider"]],
+    legend:[["s-prep","À préparer"],["s-aenv","Devis demandé"],["s-env","Commandé, à payer"],["s-sig","Payé, à livrer"],["s-pay","Payé et livré"],["s-done","Terminé (barré)"]]},
 };
-const FACT=[["factSB","SB"],["factRecue","Reçue"],["factEnvoyee","Envoyée"]];
+// « Paiement » : SB = stand-by, Validé, Envoyé (les clés restent factSB / factRecue / factEnvoyee)
+const FACT=[["factSB","SB"],["factRecue","Validé"],["factEnvoyee","Envoyé"]];
 const spaceOfType=t=>t==="achat"?"ach":"loc";
 let space="loc";
 try{space=localStorage.getItem("devis-space")==="ach"?"ach":"loc"}catch(_){}
@@ -96,11 +97,15 @@ function supplierGroups(id){
 }
 function retained(id){return offersOf(id).find(o=>o.retenue)}
 
+// Terminé : toutes les étapes et le paiement validé et envoyé, sans stand-by. La ligne est alors barrée.
+const isDone=d=>SPACES[spaceOfType(d.type)].steps.every(([k])=>d[k])&&d.factRecue&&d.factEnvoyee&&!d.factSB;
 function status(d){
+  if(isDone(d)) return ["s-done","Terminé"];
   if(kindOf(d)==="achat"){
-    if(d.paye) return ["s-pay","Payé"];
+    if(d.paye&&d.livre) return ["s-pay","Payé et livré"];
+    if(d.paye) return ["s-sig","Payé, à livrer"];
     if(d.livre) return ["s-sig","Livré, à payer"];
-    if(d.commande) return ["s-env","Commandé, à livrer"];
+    if(d.commande) return ["s-env","Commandé, à payer"];
     if(d.demande) return ["s-aenv","Devis demandé"];
     return ["s-prep","À préparer"];
   }
@@ -112,7 +117,7 @@ function status(d){
 }
 const MATCH={
   loc:{tous:()=>true,relancer:d=>d.envoye&&!d.signe,payer:d=>d.signe&&!d.paye,factures:d=>(d.signe||d.paye)&&!d.factRecue},
-  ach:{tous:()=>true,attente:d=>d.demande&&!d.commande,livrer:d=>d.commande&&!d.livre,apayer:d=>d.livre&&!d.paye,factures:d=>(d.commande||d.paye)&&!d.factRecue},
+  ach:{tous:()=>true,attente:d=>d.demande&&!d.commande,apayer:d=>d.commande&&!d.paye,livrer:d=>d.commande&&!d.livre,factures:d=>(d.commande||d.paye)&&!d.factRecue},
 };
 const inSpace=d=>spaceOfType(d.type)===space;
 const spaceRows=()=>rows.filter(inSpace);
@@ -125,7 +130,7 @@ function renderFilters(){
   $("legend").innerHTML=SPACES[space].legend.map(([c,l])=>`<span><i class="dot ${c}"></i>${l}</span>`).join("");
 }
 function ck(d,key,label,fact,short){
-  return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(fact?"Facture "+label:label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?'<span class="lf">Facture </span>':""}${short||label}</span></button>`;
+  return `<button type="button" class="ck${fact?" fact":""}" data-id="${esc(d._id)}" data-k="${key}" aria-pressed="${!!d[key]}" aria-label="${esc(fact?"Paiement "+label:label)} ${pad(d.num)}" ${canWrite?"":"disabled"}>${CHECK}<span class="lbl">${fact?'<span class="lf">Paiement </span>':""}${short||label}</span></button>`;
 }
 // Text with clickable web links (escaped first)
 const URL_RE=/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
@@ -193,7 +198,7 @@ function renderEvents(){
     html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}${cat?" is-cat":""}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche ${cat?"de la catégorie":"de l'événement"}" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} ${unit}${all.length>1?"s":""} · ${sig} ${done}${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
     if(!items.length){html+=`<div class="sheet ev-empty">${ach?"Aucun achat":"Aucun besoin"} pour l'instant.${canWrite?` <button type="button" class="linkish" data-addev="${esc(ev.nom)}">Ajouter le premier</button>`:""}</div></section>`;continue}
     html+=`<div class="sheet">`;
-    html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${SP.steps.map(s=>`<div>${s[1]}</div>`).join("")}<div></div>${FACT.map(s=>`<div>${s[1]}</div>`).join("")}</div>`;
+    html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${SP.steps.map(s=>`<div>${s[1]}</div>`).join("")}<div></div><div class="pay-h"><span class="pay-t">Paiement</span><span class="pay-c">${FACT.map(s=>`<span>${s[1]}</span>`).join("")}</span></div></div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
       html+=`<div class="row st ${cls}"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
@@ -202,7 +207,7 @@ function renderEvents(){
         (f?`<a class="clip${f.signe?" signed":""}" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${f.signe?"le devis signé":esc(f.fichierNom||"le devis")}">${CLIP}${f.signe?"Signé":esc(ext(f.fichierNom))}</a>`:"")+
         (kindOf(d)==="location"&&(d.debut||d.fin)?`<span class="dates">${fmtRange(d.debut,d.fin,[d.hDebut,d.hDebut2],[d.hFin,d.hFin2],true)}</span>`:kindOf(d)==="achat"&&d.debut?`<span class="dates">${fmtLiv(d,true)}</span>`:"")+`</div>`+
         (supplierGroups(d._id).length?`<button type="button" class="offc offbtn" data-toggle="${esc(d._id)}" aria-expanded="${openRows.has(d._id)}" aria-controls="sub-${esc(d._id)}" title="Voir les propositions"><span class="oc">${offerCell(d)}</span><span class="chev" aria-hidden="true">▾</span></button>`:`<div class="offc">${offerCell(d)}</div>`)+`<div class="checks">`+
-        SP.steps.map(([k,l,sh])=>ck(d,k,l,false,sh)).join("")+`<div class="sep"><span class="sep-l">Facture</span></div>`+
+        SP.steps.map(([k,l,sh])=>ck(d,k,l,false,sh)).join("")+`<div class="sep"><span class="sep-l">Paiement</span></div>`+
         FACT.map(([k,l])=>ck(d,k,l,true)).join("")+`</div></div>`;
       if(openRows.has(d._id)&&supplierGroups(d._id).length)html+=subRows(d);
     }
@@ -356,6 +361,9 @@ $("list").addEventListener("click",e=>{
     const d=devisById(c.dataset.id);if(!d)return;
     const k=c.dataset.k, v=!d[k];
     d[k]=v;c.setAttribute("aria-pressed",v);
+    // status colour, label and dot follow at once (no full redraw, focus stays on the box)
+    const row=c.closest(".row.st");
+    if(row){const [cls,lab]=status(d);row.className="row st "+cls;const dot=row.querySelector(".dot");if(dot){dot.className="dot "+cls;dot.title=lab}const pl=row.querySelector(".st-pill");if(pl)pl.textContent=lab}
     write(d._id,()=>api("devis",d._id,"update",{[k]:v}));
     return;
   }
@@ -1003,7 +1011,7 @@ function download(name,content,type){
 const stamp=()=>isoOf(new Date());
 function exportRows(){
   const yes=b=>b?"oui":"";
-  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Jusqu'à","Reprise","Heure reprise","Reprise jusqu'à","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Facture SB","Facture reçue","Facture envoyée","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF","Devis signé"];
+  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Jusqu'à","Reprise","Heure reprise","Reprise jusqu'à","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Paiement SB","Paiement validé","Paiement envoyé","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF","Devis signé"];
   const lines=[head];
   for(const d of [...rows].sort((a,b)=>(kindOf(a)>kindOf(b)?-1:kindOf(a)<kindOf(b)?1:0)||evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
     const ev=evObj(d), loc=kindOf(d)==="location";
