@@ -294,6 +294,18 @@ describe("déplacer une ligne (glisser la poignée)", () => {
     await page.reload(); await page.waitForSelector("[data-open]");
     assert.deepEqual(await cats(), ["Visserie", "Consommables", "Outillage"], "l'ordre est enregistré pour tout le monde");
   });
+  test("changer l'ordre des événements, même un ancien sans fiche", async () => {
+    const page = await open();
+    assert.deepEqual(await eventNames(page), ["Ouverture de la halle", "Inauguration 5/12"], "par date au départ");
+    await page.dragAndDrop('[data-catgrip="ev-inauguration-5-12"]', 'section[data-evid="ev1"]', { targetPosition: { x: 20, y: 4 } });
+    await page.waitForTimeout(400);
+    assert.deepEqual(await eventNames(page), ["Inauguration 5/12", "Ouverture de la halle"]);
+    const f = s.db.evenements.get("ev-inauguration-5-12");
+    assert.ok(f, "l'ancien événement a maintenant sa fiche"); assert.equal(f.ordre, 10); assert.equal(f.part, "loc");
+    assert.equal(s.db.evenements.get("ev1").ordre, 20);
+    await page.reload(); await page.waitForSelector("[data-open]");
+    assert.deepEqual(await eventNames(page), ["Inauguration 5/12", "Ouverture de la halle"]);
+  });
   test("pas de poignée sur iPhone", async () => {
     const page = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     assert.ok(await page.isHidden('[data-grip="d1"]'));
