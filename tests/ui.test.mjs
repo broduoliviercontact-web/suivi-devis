@@ -246,10 +246,37 @@ describe("paiement et lignes terminées", () => {
     await page.click('.ck[data-id="d1"][data-k="factEnvoyee"]'); await page.waitForTimeout(300);
     assert.equal(await page.$eval(row, (r) => r.className), "row st s-done");
     assert.equal((await page.textContent(`${row} .st-pill`)).trim(), "Terminé");
-    assert.match(await page.$eval(`${row} .obj`, (e) => getComputedStyle(e).textDecorationLine), /line-through/);
+    await page.waitForFunction((sel) => { const e = document.querySelector(sel); return e && getComputedStyle(e).textDecorationLine.includes("line-through"); }, `${row} .obj`, { timeout: 3000 });
     // stand-by : plus terminé
     await page.click('.ck[data-id="d1"][data-k="factSB"]'); await page.waitForTimeout(300);
     assert.ok(!(await page.$eval(row, (r) => r.classList.contains("s-done"))));
+  });
+});
+
+describe("déplacer une ligne (glisser la poignée)", () => {
+  test("vers un autre événement, vers une catégorie, avec Annuler", async () => {
+    s.seed({ evenements: { c1: { nom: "Outillage", kind: "categorie", style: ST("grey") } } });
+    const page = await open();
+    // location : d'un événement à l'autre
+    await page.dragAndDrop('[data-grip="d2"]', 'section[data-evid="ev1"] .ev-head');
+    await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d2").eventId, "ev1"); assert.equal(s.db.devis.get("d2").evenement, "Ouverture de la halle");
+    assert.match(await page.textContent("#toastText"), /déplacé vers « Ouverture de la halle »/);
+    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d2").evenement, "Inauguration 5/12"); assert.notEqual(s.db.devis.get("d2").eventId, "ev1");
+    // achat : vers une catégorie
+    await page.click("#spAch");
+    await page.dragAndDrop('[data-grip="d3"]', 'section[data-evid="c1"]');
+    await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").eventId, "c1");
+    assert.ok(await page.isVisible('section[data-evid="c1"] [data-open="d3"]'));
+    // un simple clic sur la poignée ne déplace rien
+    await page.click('[data-grip="d3"]'); await page.waitForTimeout(200);
+    assert.equal(s.db.devis.get("d3").eventId, "c1");
+  });
+  test("pas de poignée sur iPhone", async () => {
+    const page = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    assert.ok(await page.isHidden('[data-grip="d1"]'));
   });
 });
 

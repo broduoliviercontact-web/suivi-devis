@@ -195,13 +195,13 @@ function renderEvents(){
     const tot=all.map(r=>retained(r._id)).filter(o=>o&&o.montant!=null).reduce((s,o)=>s+o.montant,0);
     const st=styleOf(ev), when=fmtEvDates(ev);
     const meta=[when,ev.lieu].filter(Boolean).map(esc).join(" · ");
-    html+=`<section class="event"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}${cat?" is-cat":""}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche ${cat?"de la catégorie":"de l'événement"}" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} ${unit}${all.length>1?"s":""} · ${sig} ${done}${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
+    html+=`<section class="event" data-evid="${esc(ev._id)}"><div class="ev-head"><button type="button" class="tape ev-name ${evClass(st)}${cat?" is-cat":""}" style="${evStyle(st)}" data-ev="${esc(ev._id)}" title="Ouvrir la fiche ${cat?"de la catégorie":"de l'événement"}" ${canWrite?"":"disabled"}>${esc(ev.nom)}${canWrite?PEN:""}</button><span class="ev-count">${meta?`<b class="ev-when">${meta}</b> · `:""}${all.length} ${unit}${all.length>1?"s":""} · ${sig} ${done}${sig>1?"s":""} · ${pay} payé${pay>1?"s":""}${tot?" · retenu : "+eur(tot):""}${ev.notes?`<span class="ev-n" title="${esc(ev.notes)}"> · ${esc(ev.notes.replace(/\s+/g," "))}</span>`:""}</span>${canWrite?`<button type="button" class="ghost sm ev-add" data-addev="${esc(ev.nom==="Sans événement"?"":ev.nom)}">+ Besoin</button>`:""}</div>`;
     if(!items.length){html+=`<div class="sheet ev-empty">${ach?"Aucun achat":"Aucun besoin"} pour l'instant.${canWrite?` <button type="button" class="linkish" data-addev="${esc(ev.nom)}">Ajouter le premier</button>`:""}</div></section>`;continue}
     html+=`<div class="sheet">`;
     html+=`<div class="row th" aria-hidden="true"><div class="l" style="padding-left:12px">N°</div><div class="l">Besoin</div><div class="l" style="padding-left:0">Propositions</div>${SP.steps.map(s=>`<div>${s[1]}</div>`).join("")}<div></div><div class="pay-h"><span class="pay-t">Paiement</span><span class="pay-c">${FACT.map(s=>`<span>${s[1]}</span>`).join("")}</span></div></div>`;
     for(const d of items){
       const [cls,lab]=status(d), f=rowFile(d);
-      html+=`<div class="row st ${cls}"><div class="num"><i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
+      html+=`<div class="row st ${cls}" data-row="${esc(d._id)}"><div class="num">${canWrite?`<span class="grip" draggable="true" data-grip="${esc(d._id)}" title="Glisser pour déplacer vers un autre ${ach?"groupe":"événement"}" aria-hidden="true">⠿</span>`:""}<i class="dot ${cls}" title="${lab}"></i>${pad(d.num)}</div>`+
         `<div class="objc"><button type="button" class="obj" data-open="${esc(d._id)}">${esc(d.objet||"Sans objet")}</button>`+
         `<span class="kind ${kindOf(d)==="achat"?"ach":"loc"}">${kindOf(d)==="achat"?"Achat":"Location"}</span>`+`<span class="st-pill">${lab}</span>`+
         (f?`<a class="clip${f.signe?" signed":""}" href="/api/file?p=${esc(f.fichierId)}" target="_blank" rel="noopener" title="Ouvrir ${f.signe?"le devis signé":esc(f.fichierNom||"le devis")}">${CLIP}${f.signe?"Signé":esc(ext(f.fichierNom))}</a>`:"")+
@@ -559,6 +559,38 @@ function paintKind(){
   $("fHDebut2").setAttribute("aria-label",fKind==="achat"?"Livraison jusqu'à (facultatif)":"Arrivée jusqu'à (facultatif)");
 }
 $("fKind").addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(b&&canWrite){fKind=b.dataset.k;paintKind()}});
+
+/* ---------- déplacer une ligne : glisser la poignée ⠿ sur un autre événement / une autre catégorie ----------
+   Ordinateur seulement ; seule la poignée se glisse, un clic ailleurs sur la ligne ne déplace rien. */
+let dragId=null;
+const dropZone=e=>{const z=e.target.closest&&e.target.closest("section.event[data-evid]");return z&&$("list").contains(z)?z:null};
+$("list").addEventListener("dragstart",e=>{
+  const g=e.target.closest&&e.target.closest("[data-grip]");if(!g||!canWrite){return}
+  dragId=g.dataset.grip;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",dragId);
+  const row=g.closest(".row");if(row){row.classList.add("dragging");try{e.dataTransfer.setDragImage(row,20,16)}catch(_){}}
+  document.body.classList.add("is-dragging");
+});
+$("list").addEventListener("dragend",()=>{dragId=null;document.body.classList.remove("is-dragging");document.querySelectorAll(".dragging,.drop-over").forEach(x=>x.classList.remove("dragging","drop-over"))});
+$("list").addEventListener("dragover",e=>{
+  if(!dragId)return;const z=dropZone(e);if(!z)return;
+  e.preventDefault();e.dataTransfer.dropEffect="move";
+  document.querySelectorAll(".drop-over").forEach(x=>x!==z&&x.classList.remove("drop-over"));z.classList.add("drop-over");
+});
+$("list").addEventListener("dragleave",e=>{const z=dropZone(e);if(z&&!z.contains(e.relatedTarget))z.classList.remove("drop-over")});
+$("list").addEventListener("drop",e=>{
+  if(!dragId)return;const z=dropZone(e);if(!z)return;
+  e.preventDefault();
+  const id=dragId;dragId=null;document.body.classList.remove("is-dragging");
+  document.querySelectorAll(".dragging,.drop-over").forEach(x=>x.classList.remove("dragging","drop-over"));
+  moveTo(id,z.dataset.evid);
+});
+function moveTo(id,evId){
+  const d=devisById(id), ev=EV.get(evId);if(!d||!ev||evKey(d)===evId)return;
+  if(isCat(ev)&&kindOf(d)==="location")return toast(`« ${ev.nom} » est une catégorie d'achats : une location reste dans un événement.`);
+  const before={eventId:d.eventId??null,evenement:d.evenement??""}, patch={eventId:ev._id,evenement:ev.nom};
+  Object.assign(d,patch);write(d._id,()=>api("devis",d._id,"update",patch));render();
+  toast(`${pad(d.num)} ${d.objet||""} déplacé vers « ${ev.nom} ».`,()=>{Object.assign(d,before);write(d._id,()=>api("devis",d._id,"update",before));render()});
+}
 
 /* ---------- calendrier des locations ---------- */
 let calMonth=(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),1)})();
@@ -1039,7 +1071,7 @@ let pending=0, refreshTimer=null, started=false;
 // (writeGen moved) and another one follows once all changes are saved.
 let writeGen=0;
 async function refresh(){
-  if(pending)return;
+  if(pending||dragId)return;
   const gen=writeGen;
   try{
     const j=await call("/api/data");
