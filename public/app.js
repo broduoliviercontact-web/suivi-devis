@@ -653,7 +653,16 @@ function setCal(d){calMonth=new Date(d.getFullYear(),d.getMonth(),1);try{localSt
 $("calPrev").onclick=()=>setCal(new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1));
 $("calNext").onclick=()=>setCal(new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1));
 $("calToday").onclick=()=>setCal(new Date());
-$("calView").addEventListener("click",e=>{const o=e.target.closest("[data-open]");if(o)openFiche(o.dataset.open)});
+$("calView").addEventListener("click",e=>{
+  const v=e.target.closest("[data-liv]");if(v){toggleLivre(v.dataset.liv);return}
+  const o=e.target.closest("[data-open]");if(o)openFiche(o.dataset.open)});
+// Calendrier : la case devant une livraison coche « Livré » (avec Annuler) ; le reste de la barre ouvre la fiche.
+function toggleLivre(id){
+  const d=devisById(id);if(!d||!canWrite)return;
+  const v=!d.livre;d.livre=v;write(d._id,()=>api("devis",d._id,"update",{livre:v}));render();
+  toast(v?`${pad(d.num)} ${d.objet||""} : livraison validée.`:`${pad(d.num)} ${d.objet||""} : livraison remise en attente.`,()=>{d.livre=!v;write(d._id,()=>api("devis",d._id,"update",{livre:!v}));render()});
+}
+const livBox=(l,place)=>l.liv&&canWrite?`<button type="button" class="cliv" ${place||""} data-liv="${esc(l.r._id)}" aria-pressed="${!!l.r.livre}" aria-label="${l.r.livre?"Livré":"Valider la livraison"} : ${pad(l.r.num)} ${esc(l.r.objet||"")}" title="${l.r.livre?"Livré · cliquer pour annuler":"Cliquer pour valider la livraison"}">${CHECK}</button>`:"";
 function renderCalendar(){
   const y=calMonth.getFullYear(), m=calMonth.getMonth();
   const first=new Date(y,m,1), last=new Date(y,m+1,0);
@@ -682,13 +691,14 @@ function renderCalendar(){
       const s=l.a<w?w:l.a, e=l.b>wEnd?wEnd:l.b;
       const c0=Math.round((s-w)/864e5), c1=Math.round((e-w)/864e5);
       let lane=lanes.findIndex(end=>end<c0); if(lane<0){lane=lanes.length;lanes.push(c1)}else lanes[lane]=c1;
-      bars+=`<button type="button" class="cbar ${l.c}${l.a<w?" cont-l":""}${l.b>wEnd?" cont-r":""}" style="grid-column:${c0+1} / ${c1+2};grid-row:${lane+2}" data-open="${esc(l.r._id)}" title="${tip(l)}">${label(l,l.a>=w,l.b<=wEnd)}</button>`;
+      const ck=livBox(l,`style="grid-column:${c0+1};grid-row:${lane+2}"`);
+      bars+=`<button type="button" class="cbar ${l.c}${l.a<w?" cont-l":""}${l.b>wEnd?" cont-r":""}${ck?" has-ck":""}${l.liv&&l.r.livre?" is-livre":""}" style="grid-column:${c0+1} / ${c1+2};grid-row:${lane+2}" data-open="${esc(l.r._id)}" title="${tip(l)}">${label(l,l.a>=w,l.b<=wEnd)}</button>${ck}`;
     }
     html+=`<div class="cal-week" style="grid-template-rows:28px repeat(${lanes.length},auto) minmax(10px,1fr)">${cells}${bars}</div>`;
   }
   html+=`</div>`;
   // phone: chronological list for the month
-  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.liv?`<span class="cl-hours"><span class="hb"><i>Livraison</i>${l.r.hDebut?" "+esc(slot(l.r.hDebut,l.r.hDebut2)):""}</span></span>`:l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(slot(l.r.hDebut,l.r.hDebut2))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(slot(l.r.hFin,l.r.hFin2))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>`).join(""):`<div class="empty-state">Aucune location ni livraison ce mois-ci.</div>`}</div>`;
+  html+=`<div class="cal-list">${inMonth.length?inMonth.map(l=>`${l.liv&&canWrite?`<div class="cl-row${l.r.livre?" is-livre":""}">${livBox(l)}`:""}<button type="button" class="cl-item" data-open="${esc(l.r._id)}"><span class="cl-when ${l.c}">${esc(fmtShort(l.a,l.b))}</span><span class="cl-what">${esc(l.r.objet||"Sans objet")}</span>${l.liv?`<span class="cl-hours"><span class="hb"><i>Livraison</i>${l.r.hDebut?" "+esc(slot(l.r.hDebut,l.r.hDebut2)):""}</span></span>`:l.r.hDebut||l.r.hFin?`<span class="cl-hours">${l.r.hDebut?`<span class="hb"><i>Arrivée</i> ${esc(slot(l.r.hDebut,l.r.hDebut2))}</span>`:""}${l.r.hFin?`<span class="hb"><i>Reprise</i> ${esc(slot(l.r.hFin,l.r.hFin2))}</span>`:""}</span>`:""}<span class="cl-meta">${esc(evOf(l.r))}${l.four?" · "+esc(l.four):""}</span></button>${l.liv&&canWrite?"</div>":""}`).join(""):`<div class="empty-state">Aucune location ni livraison ce mois-ci.</div>`}</div>`;
   const undated=calFilter==="liv"?[]:rows.filter(r=>kindOf(r)==="location"&&!r.debut&&!r.fin).sort((a,b)=>evTime(evObj(a))-evTime(evObj(b))||a.num-b.num);
   if(undated.length)html+=`<div class="cal-undated"><h3>Locations sans dates (${undated.length})</h3><p>Ouvre un besoin pour indiquer son début et sa fin de location : il apparaîtra dans le calendrier.</p><div class="chips">${undated.map(r=>`<button type="button" data-open="${esc(r._id)}">${pad(r.num)} ${esc(r.objet||"Sans objet")} <span>· ${esc(evOf(r))}</span></button>`).join("")}</div></div>`;
   $("calView").innerHTML=html;

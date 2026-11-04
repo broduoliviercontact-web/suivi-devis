@@ -506,6 +506,37 @@ describe("deux parties : Location Événementielle / Achat DTSE", () => {
   });
 });
 
+describe("calendrier : valider une livraison", () => {
+  const toNov = async (page) => {
+    await page.click("#tabCal");
+    for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
+      await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
+  };
+  test("la case devant une livraison coche « Livré », avec Annuler ; la barre ouvre toujours la fiche", async () => {
+    s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07", commande: true } } });
+    const page = await open();
+    await toNov(page);
+    assert.equal(await page.locator('.cliv[data-liv="d1"]').count(), 0, "pas de case sur une location");
+    await page.click('.cliv[data-liv="d3"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").livre, true);
+    assert.equal(await page.getAttribute('.cliv[data-liv="d3"]', "aria-pressed"), "true");
+    assert.ok(await page.$eval('.cbar[data-open="d3"]', (b) => b.classList.contains("is-livre")));
+    assert.match(await page.textContent("#toastText"), /livraison validée/);
+    assert.ok(await page.isHidden("#veil"), "cocher n'ouvre pas la fiche");
+    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").livre, false);
+    await page.click('.cbar[data-open="d3"]'); await page.waitForSelector("#veil:not([hidden])");
+  });
+  test("iPhone : la case est dans la liste du mois", async () => {
+    s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07" } } });
+    const page = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await toNov(page);
+    await page.tap('.cl-row .cliv[data-liv="d3"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").livre, true);
+    assert.ok(await page.isVisible(".cl-row.is-livre"));
+  });
+});
+
 describe("calendrier en PDF", () => {
   // reads the text of a PDF with the site's own pdf.js (lines of text, top to bottom)
   const pdfText = (page, file) => page.evaluate(async (b64) => {
