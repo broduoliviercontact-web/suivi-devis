@@ -574,3 +574,25 @@ section.event.drop-after{box-shadow:0 3px 0 0 var(--sel)}
 .cl-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
 .cl-row .cliv{width:26px;height:26px;margin:0;border-radius:4px}
 .cl-row .cliv svg{width:16px;height:16px}
+
+/* lecture du devis : infos en plus, dates, version */
+.more{border:1px solid var(--line);border-radius:3px;padding:0 10px;margin-top:2px}
+.more>summary{cursor:pointer;padding:8px 0;font-size:.86rem;font-weight:600;color:var(--muted)}
+.more[open]>summary{border-bottom:1px solid var(--line);margin-bottom:8px}
+.more .grid2{padding-bottom:10px}
+.more-sum{font-weight:400}
+.read-extra{display:flex;flex-direction:column;gap:6px;font-size:.86rem}
+.read-extra p{margin:0;padding:7px 10px;border-radius:3px;background:color-mix(in srgb,var(--blue) 8%,transparent);border:1px solid color-mix(in srgb,var(--blue) 30%,transparent)}
+.read-extra button{margin-left:6px}
+.o-more{font-size:.82rem;color:var(--muted);margin-top:4px}
+.o-more .late{color:var(--red)}
+.o-prix{margin-top:6px;font-size:.82rem}
+.o-prix>summary{cursor:pointer;color:var(--muted)}
+table.prix{width:100%;border-collapse:collapse;margin-top:6px;font-variant-numeric:tabular-nums}
+table.prix th,table.prix td{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left;vertical-align:top}
+table.prix th{font-weight:600;color:var(--muted);font-size:.76rem}
+table.prix td:first-child,table.prix td:nth-child(3),table.prix td:nth-child(4){white-space:nowrap}
+table.prix td:nth-child(3),table.prix td:nth-child(4),table.prix th:nth-child(3),table.prix th:nth-child(4){text-align:right}
+table.prix .rem{color:var(--muted);font-size:.74rem}
+.det .hits{margin-bottom:4px;padding:4px 6px;border-left:3px solid var(--blue);background:color-mix(in srgb,var(--blue) 6%,transparent);font-size:.85rem}
+.det details.all>summary{cursor:pointer;color:var(--muted);font-size:.8rem}

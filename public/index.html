@@ -154,6 +154,20 @@
             <span class="read-msg" id="oReadMsg" role="status"></span>
             <button type="button" class="linkbtn" id="oUndoRead" hidden>Rétablir le texte d'avant</button>
           </div>
+          <div class="full read-extra" id="oReadExtra" hidden>
+            <p id="oVersionHint" hidden></p>
+            <p id="oDatesRow" hidden><span id="oDatesTxt"></span> <button type="button" class="ghost sm" id="oDates">Mettre ces dates sur le besoin</button></p>
+          </div>
+          <details class="full more" id="oMore">
+            <summary>Plus d'infos du devis <span class="more-sum" id="oMoreSum"></span></summary>
+            <div class="grid2">
+              <label>Montant TTC (€)<input id="oTtc" inputmode="decimal" placeholder="ex. 1 111,80"></label>
+              <label>dont transport / livraison (€ HT)<input id="oTransport" inputmode="decimal" placeholder="ex. 120"></label>
+              <label>Remise<input id="oRemise" placeholder="ex. 30 % ou 129 €"></label>
+              <label>Valable jusqu'au<input id="oValid" type="date"></label>
+              <label class="full">Paiement<input id="oPaie" placeholder="ex. Acompte 30 % à la commande · comptant"></label>
+            </div>
+          </details>
         </div>
         <p class="hint" id="oFileHint" hidden></p>
         <p class="err" id="oErr" hidden></p>

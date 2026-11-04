@@ -50,7 +50,24 @@ c.drawString(380, y, "Total HT"); c.drawRightString(530, y, "1 234,50 €"); y -
 c.drawString(380, y, "TVA 20 %"); c.drawRightString(530, y, "246,90 €"); y -= 14; c.drawString(380, y, "Total TTC"); c.drawRightString(530, y, "1 481,40 €")
 c.save()
 
-# 3. Scan : une image, aucun texte
+# 3. Devis complet : date du devis, livraison / reprise avec heures, remise, TTC, acompte, validité
+c = canvas.Canvas(f"{D}/devis-complet.pdf", pagesize=A4)
+c.setFont("Helvetica-Bold", 16); c.drawString(40, 790, "LUMIERE & CO"); c.setFont("Helvetica", 9); c.drawString(40, 776, "devis@lumiereco.fr")
+c.setFont("Helvetica-Bold", 12); c.drawString(40, 745, "Devis N° LC-881 / 2"); c.setFont("Helvetica", 10); c.drawString(40, 730, "Date du devis : 02/11/2026")
+y = 690; c.setFont("Helvetica-Bold", 9)
+for x, t in [(40, "Désignation"), (330, "Qté"), (390, "P.U. HT"), (480, "Total HT")]: c.drawString(x, y, t)
+c.setFont("Helvetica", 9)
+for d, q, pu, tot in [("Projecteur Robe Spiider", "8", "95,00", "760,00"), ("Console grandMA3 light", "1", "350,00", "350,00"), ("Livraison et reprise", "1", "180,00", "180,00")]:
+    y -= 16; c.drawString(40, y, d); c.drawRightString(345, y, q); c.drawRightString(440, y, pu + " €"); c.drawRightString(530, y, tot + " €")
+y -= 30; c.drawString(40, y, "Livraison : vendredi 4 décembre à 9h30"); y -= 13; c.drawString(40, y, "Reprise : lundi 7 décembre 14h")
+y -= 30; c.setFont("Helvetica-Bold", 10)
+for lab, v in [("Sous-total HT", "1 290,00 €"), ("Remise 10 %", "-129,00 €"), ("Total HT", "1 161,00 €"), ("TVA 20 %", "232,20 €"), ("Total TTC", "1 393,20 €")]:
+    c.drawString(360, y, lab); c.drawRightString(530, y, v); y -= 14
+c.setFont("Helvetica", 9); y -= 20
+c.drawString(40, y, "Acompte de 30 % à la commande, solde à réception de facture."); y -= 12; c.drawString(40, y, "Devis valable 30 jours.")
+c.save()
+
+# 4. Scan : une image, aucun texte
 img = Image.new("RGB", (1240, 1754), "white"); dr = ImageDraw.Draw(img)
 for i, t in enumerate(["DEVIS", "1 Console Yamaha QL5   450,00", "Total HT 450,00"]): dr.text((100, 120 + i * 60), t, fill="black")
 img.save(f"{D}/scan.png"); c = canvas.Canvas(f"{D}/devis-scan.pdf", pagesize=A4); c.drawImage(f"{D}/scan.png", 0, 0, W, H); c.save(); os.remove(f"{D}/scan.png")

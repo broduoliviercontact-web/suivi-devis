@@ -595,7 +595,7 @@ describe("lire un devis PDF", () => {
     assert.ok(await page.isHidden("#oReadRow"), "pas de bouton tant qu'aucun PDF n'est choisi");
     await page.setInputFiles("#oFile", FIX + "devis-designation.pdf");
     await page.click("#oRead");
-    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s234,50\s€ HT · réf\. D-2026-114 · STAGEPRO\./u);
+    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s234,50\s€ HT · réf\. D-2026-114 · STAGEPRO · et TTC\./u);
     assert.equal(await page.inputValue("#oDetail"), "12 Praticable Samia 2x1 m hauteur 60 cm\n2 Escalier 3 marches\n3 Jupe de scène noire 6 m");
     assert.equal(await page.inputValue("#oMontant"), "1234,50");
     await page.click("#oSave"); await page.waitForTimeout(800);
@@ -610,12 +610,55 @@ describe("lire un devis PDF", () => {
     await page.click('[data-open="d2"] >> nth=0');
     await page.click('[data-act="version"][data-o="o9"]');
     await page.click("#oRead");
-    assert.match(await readMsg(page), /^Lu dans le PDF : 6 lignes · 877,40\s€ HT · réf\. DV-2026-0457\./u);
+    assert.match(await readMsg(page), /^Lu dans le PDF : 6 lignes · 877,40\s€ HT · réf\. DV-2026-0457 · et TTC, transport, remise\./u);
     assert.equal(await page.inputValue("#oMontant"), "877,40", "le prix de la V1 est remplacé");
     const lignes = (await page.inputValue("#oDetail")).split("\n");
     assert.deepEqual(lignes, ["1 Console Yamaha QL5", "4 Enceinte L-Acoustics X12", "4 Pied d'enceinte (noir, avec adaptateur)", "6 Micro HF Shure ULXD2 B58", "20 Câble XLR 10m", "1 Transport A/R"]);
     await page.click("#oUndoRead");
     assert.equal(await page.inputValue("#oDetail"), "ancien détail");
+  });
+
+  test("devis complet : TTC, transport, remise, paiement, validité, prix par ligne, dates du besoin", async () => {
+    const page = await open();
+    await page.click('[data-open="d1"] >> nth=0'); await page.click("#addOfferBtn");
+    await page.setInputFiles("#oFile", FIX + "devis-complet.pdf");
+    await page.click("#oRead");
+    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s161,00\s€ HT · réf\. LC-881 \/ 2 · LUMIERECO · et TTC, transport, remise, paiement, validité\./u);
+    assert.ok(await page.$eval("#oMore", (d) => d.open));
+    assert.equal(await page.inputValue("#oTtc"), "1393,20"); assert.equal(await page.inputValue("#oTransport"), "180");
+    assert.equal(await page.inputValue("#oRemise"), "129,00 € (10 %)");
+    assert.equal(await page.inputValue("#oPaie"), "Acompte 30 % à la commande");
+    assert.equal(await page.inputValue("#oValid"), "2026-12-02");
+    // dates lues : livraison ven 4 déc 9h30, reprise lun 7 déc 14h -> sur le besoin
+    assert.match(await page.textContent("#oDatesTxt"), /ven 4 déc 9h30 → lun 7 déc 14h/);
+    await page.click("#oDates"); await page.waitForTimeout(400);
+    const d = s.db.devis.get("d1");
+    assert.deepEqual([d.debut, d.hDebut, d.fin, d.hFin], ["2026-12-04", "09:30", "2026-12-07", "14:00"]);
+    assert.equal(await page.inputValue("#fDebut"), "2026-12-04");
+    assert.ok(await page.isHidden("#oDates"));
+    await page.click("#oSave"); await page.waitForTimeout(800);
+    const o = [...s.db.offres.values()].find((x) => x.fournisseur === "LUMIERECO");
+    assert.deepEqual([o.ttc, o.transport, o.remise, o.paiement, o.validite], [1393.2, 180, "129,00 € (10 %)", "Acompte 30 % à la commande", "2026-12-02"]);
+    assert.deepEqual(o.articles[0], { q: 8, d: "Projecteur Robe Spiider", pu: 95, remise: null, total: 760 });
+    assert.match(await page.textContent("#propList"), /1\s393,20\s€ TTC · dont transport 180,00\s€ HT · remise 129,00 € \(10 %\) · Acompte 30 % à la commande · valable jusqu'au mer 2 déc/u);
+    await page.click(".o-prix summary");
+    assert.match(await page.textContent(".o-prix"), /8\s*Projecteur Robe Spiider\s*95,00\s€\s*760,00\s€/u);
+    // la mémoire des prix retrouve une ligne du devis
+    await page.click("#closeBtn"); await page.click("#tabMem"); await page.fill("#memSearch", "spiider");
+    assert.match(await page.textContent("#memView"), /8 × Projecteur Robe Spiider · 95,00\s€ l'unité → 760,00\s€/u);
+  });
+
+  test("même n° de devis : reconnu comme nouvelle version du fournisseur", async () => {
+    s.seed({ offres: { o9: { devisId: "d2", fournisseur: "Lumière & Co", montant: 1300, ref: "LC-881 / 1", version: 1, retenue: false, cree: "2026-10-27T10:00:00Z" } } });
+    const page = await open();
+    await page.click('[data-open="d2"] >> nth=0'); await page.click("#addOfferBtn");
+    await page.setInputFiles("#oFile", FIX + "devis-complet.pdf"); await page.click("#oRead"); await readMsg(page);
+    assert.equal(await page.inputValue("#oFour"), "Lumière & Co");
+    assert.match(await page.textContent("#oVersionHint"), /Même n° de devis que Lumière & Co : celle-ci sera enregistrée comme V2/);
+    await page.click("#oSave"); await page.waitForTimeout(800);
+    const v2 = [...s.db.offres.values()].find((x) => x.ref === "LC-881 / 2");
+    assert.equal(v2.version, 2); assert.equal(v2.fournisseur, "Lumière & Co");
+    assert.equal((await page.$$(".offer")).length, 1, "une seule proposition, avec la V1 dans l'historique");
   });
 
   test("un scan est signalé, une image n'a pas de bouton", async () => {

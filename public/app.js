@@ -34,7 +34,8 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const pad=n=>"#"+String(n).padStart(3,"0");
 const keyOf=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().replace(/s\b/g,"");
 const ext=n=>{const m=/\.([a-z0-9]{2,4})$/i.exec(n||"");return m?m[1].toUpperCase():"Fichier"};
-const eur=n=>(n==null||isNaN(n))?"":new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(n)+" HT";
+const eur0=n=>(n==null||isNaN(n))?"":new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(n);
+const eur=n=>eur0(n)&&eur0(n)+" HT";
 const day=iso=>{if(!iso)return"";const d=new Date(iso);return isNaN(d)?"":d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"2-digit"})};
 const fileLink=(id,name,label)=>id?`<a href="/api/file?p=${esc(id)}" target="_blank" rel="noopener">${esc(label||name||"Devis")}</a>`:"";
 
@@ -228,7 +229,9 @@ function renderMemory(){
   const groups=new Map();
   for(const e of memEntries()){
     const k=keyOf(e.d.objet)||"autre";
-    if(q&&!(k.includes(q)||keyOf(e.o.fournisseur).includes(q)||keyOf(e.o.detail).includes(q)))continue;
+    // a search also finds single lines of a devis (« pied manfrotto ») with their own price
+    e.hits=q&&e.o.articles?e.o.articles.filter(a=>keyOf(a.d).includes(q)&&(a.pu!=null||a.total!=null)):[];
+    if(q&&!(k.includes(q)||keyOf(e.o.fournisseur).includes(q)||keyOf(e.o.detail).includes(q)||e.hits.length))continue;
     if(!groups.has(k))groups.set(k,{name:e.d.objet||"Autre",items:[]});
     groups.get(k).items.push(e);
   }
@@ -241,7 +244,7 @@ function renderMemory(){
     html+=`<section class="event"><div class="ev-head"><span class="tape mem-tape ${evClass({c:"grey"})}">${esc(g.name)}</span><span class="ev-count">${g.items.length} proposition${g.items.length>1?"s":""} · ${fours} fournisseur${fours>1?"s":""}${prices.length?" · de "+eur(Math.min(...prices))+" à "+eur(Math.max(...prices)):""}</span></div>`+
       `<div class="sheet mem-wrap"><table class="mem-table"><thead><tr><th>Fournisseur</th><th>Montant</th><th>Détail</th><th>Événement / catégorie</th><th></th></tr></thead><tbody>`;
     for(const e of g.items){
-      html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${linkifyShort(e.o.detail||"")}</td>`+
+      html+=`<tr><td class="four">${esc(e.o.fournisseur)}${(e.o.version||1)>1?` <span class="vbadge">V${e.o.version}</span>`:""}</td><td class="p">${eur(e.o.montant)||"—"}</td><td class="det">${e.hits&&e.hits.length?`<div class="hits">${e.hits.slice(0,6).map(a=>`<div><b>${esc(num2(a.q))} × ${esc(a.d)}</b> · ${a.pu!=null?eur0(a.pu)+" l'unité":""}${a.remise?` (−${esc(num2(a.remise))} %)`:""}${a.total!=null?` → <b>${eur0(a.total)}</b>`:""}</div>`).join("")}</div>`:""}${e.hits&&e.hits.length&&e.o.detail?`<details class="all"><summary>Tout le devis</summary>${linkifyShort(e.o.detail)}</details>`:linkifyShort(e.o.detail||"")}</td>`+
         `<td><button type="button" class="linkish" data-open="${esc(e.d._id)}">${esc(evOf(e.d))} · ${pad(e.d.num)}</button><div class="notice">${day(e.o.cree)}</div></td>`+
         `<td>${e.retenue?'<span class="yes">✓ Retenu</span><br>':""}${fileLink(e.o.fichierId,e.o.fichierNom,ext(e.o.fichierNom))}</td></tr>`;
     }
@@ -782,6 +785,20 @@ function renderFiche(){
   if(d)renderProps(d);
   renderMem();
 }
+// Infos du devis en plus du HT : TTC, transport, remise, paiement, validité
+function moreLine(o){
+  const p=[];
+  if(o.ttc!=null)p.push(`${eur0(o.ttc)} TTC`);
+  if(o.transport!=null)p.push(`dont transport ${eur(o.transport)}`);
+  if(o.remise)p.push(`remise ${esc(o.remise)}`);
+  if(o.paiement)p.push(esc(o.paiement));
+  if(o.validite){const late=o.validite<isoOf(new Date())&&!o.retenue;p.push(`<span class="${late?"late":""}">valable jusqu'au ${esc(fmtD(o.validite))}${late?" (dépassé)":""}</span>`)}
+  return p.length?`<div class="o-more">${p.join(" · ")}</div>`:"";
+}
+const num2=v=>v==null?"":String(v).replace(".",",");
+function articlesTable(arts,hit){
+  return `<table class="prix"><thead><tr><th>Qté</th><th>Désignation</th><th>P.U. HT</th><th>Total HT</th></tr></thead><tbody>${arts.map(a=>`<tr${hit&&hit(a)?' class="hit"':""}><td>${esc(num2(a.q))}</td><td>${esc(a.d)}</td><td>${a.pu!=null?eur0(a.pu):""}${a.remise?` <span class="rem">−${esc(num2(a.remise))} %</span>`:""}</td><td>${a.total!=null?eur0(a.total):""}</td></tr>`).join("")}</tbody></table>`;
+}
 function renderProps(d){
   const groups=supplierGroups(d._id).sort((a,b)=>(b.retenue-a.retenue)||((a.latest.montant??Infinity)-(b.latest.montant??Infinity)));
   $("propTitle").textContent=`Propositions${groups.length?" ("+groups.length+")":""}`;
@@ -791,6 +808,8 @@ function renderProps(d){
     return `<div class="offer${isRet?" retenue":""}">
       <div class="o-top"><span class="o-four">${esc(o.fournisseur)}</span><span class="vbadge">V${o.version||1}</span>${isRet?'<span class="rbadge">✓ Retenue</span>':""}<span class="o-price">${eur(o.montant)||"Prix à venir"}</span></div>
       ${o.detail?`<div class="o-det">${linkifyShort(o.detail)}</div>`:""}
+      ${moreLine(o)}
+      ${o.articles&&o.articles.some(a=>a.total!=null||a.pu!=null)?`<details class="o-prix"><summary>Prix par ligne (${o.articles.length})</summary>${articlesTable(o.articles)}</details>`:""}
       <div class="o-meta">${o.ref?`<span>Réf. ${esc(o.ref)}</span>`:""}<span>${day(o.cree)}</span>${fileLink(o.fichierId,o.fichierNom,"Ouvrir le "+ext(o.fichierNom))}</div>
       ${signBlock(o,isRet,groups.some(x=>x.retenue))}
       ${g.olds.length?`<div class="olds">${g.olds.map(v=>`<div><s>V${v.version||1}</s><span>${eur(v.montant)||"—"}</span><span>${day(v.cree)}</span>${fileLink(v.fichierId,v.fichierNom,ext(v.fichierNom))}${v.retenue?'<span class="yes">✓ retenue</span>':""}</div>`).join("")}</div>`:""}
@@ -916,6 +935,11 @@ function openOffer(mode,prefill){
   $("oMontant").value=mode.kind==="add"?"":(o.montant??"");
   $("oDetail").value=src.detail||"";
   $("oRef").value=mode.kind==="edit"?(o.ref||""):"";
+  {const e=mode.kind==="edit"?o:{};
+   $("oTtc").value=e.ttc!=null?num2(e.ttc):"";$("oTransport").value=e.transport!=null?num2(e.transport):"";
+   $("oRemise").value=e.remise||"";$("oPaie").value=e.paiement||"";$("oValid").value=e.validite||"";
+   $("oMore").open=false;paintMoreSum();}
+  readArticles=mode.kind==="edit"?(o.articles||null):null;readDates=null;$("oReadExtra").hidden=true;$("oVersionHint").hidden=true;$("oDatesRow").hidden=true;
   $("oFile").value="";$("oFile").hidden=!assets;
   $("oFileHint").hidden=!!assets;
   $("oFileHint").textContent="Pour joindre un fichier, il faut l'accès « Éditeur » à la page.";
@@ -931,7 +955,12 @@ function nextVersion(o){return offersOf(o.devisId).filter(x=>keyOf(x.fournisseur
 $("addOfferBtn").onclick=()=>openOffer({kind:"add"});
 $("oCancel").onclick=()=>{const drop=()=>{oMode=null;renderFiche()};offerDirty()?askDiscard(fichePanel(),drop,"Cette proposition n'est pas enregistrée."):drop()};
 /* ---------- « Lire le devis » : pré-remplir depuis le PDF (lu dans le navigateur, rien n'est envoyé) ---------- */
-let readInit={}, readUndo=null;
+let readInit={}, readUndo=null, readArticles=null, readDates=null;
+function paintMoreSum(){
+  const p=[];if($("oTtc").value.trim())p.push("TTC");if($("oTransport").value.trim())p.push("transport");if($("oRemise").value.trim())p.push("remise");if($("oPaie").value.trim())p.push("paiement");if($("oValid").value)p.push("validité");
+  $("oMoreSum").textContent=p.length?"· "+p.join(", "):"";
+}
+["oTtc","oTransport","oRemise","oPaie","oValid"].forEach(id=>$(id).addEventListener("input",paintMoreSum));
 const isPdf=n=>/\.pdf$/i.test(n||"");
 function readSource(){
   const f=$("oFile").files[0];
@@ -971,10 +1000,67 @@ $("oRead").onclick=async()=>{
     if(r.totalHT!=null&&untouched("oMontant","montant")){$("oMontant").value=r.totalHT.toFixed(2).replace(".",",");done.push(eur(r.totalHT))}
     if(r.ref&&untouched("oRef","ref")){$("oRef").value=r.ref;done.push("réf. "+r.ref)}
     if(r.fournisseur&&!$("oFour").disabled&&untouched("oFour","four")){$("oFour").value=r.fournisseur;done.push(r.fournisseur)}
+    // TTC, transport, remise, paiement, validité (only into empty fields)
+    const more=[];
+    const fillMore=(id,v,lab)=>{if(v==null||v==="")return;if(!$(id).value.trim()){$(id).value=v;more.push(lab)}};
+    fillMore("oTtc",r.ttc!=null?r.ttc.toFixed(2).replace(".",","):null,"TTC");
+    fillMore("oTransport",r.transport!=null?num2(r.transport):null,"transport");
+    fillMore("oRemise",r.remise,"remise");fillMore("oPaie",r.paiement,"paiement");fillMore("oValid",r.validite,"validité");
+    if(more.length){$("oMore").open=true;paintMoreSum();done.push("et "+more.join(", "))}
+    if(r.articles&&r.articles.length)readArticles=r.articles;
+    readDates=r.dates||null;
+    paintReadExtra(r);
     if(!done.length)return paintRead("Aucune ligne d'article reconnue dans ce devis : remplis les champs à la main.","bad");
     paintRead(`Lu dans le PDF : ${done.join(" · ")}. Vérifie avant d'enregistrer.`,"ok");
   }catch(e){console.warn(e);paintRead("Ce PDF n'a pas pu être lu. Remplis les champs à la main.","bad")}
   finally{b.disabled=false;b.textContent="Lire le devis et pré-remplir"}
+};
+// After a read: dates to put on the besoin, and « is this a new version of a devis we already have? »
+function paintReadExtra(r){
+  const d=devisById(fiche.id), extra=[];
+  $("oDatesRow").hidden=true;$("oVersionHint").hidden=true;
+  // dates
+  if(d&&r.dates){
+    const loc=kindOf(d)==="location", x=r.dates;
+    const want=loc?{debut:x.debut,fin:x.fin,hDebut:x.hDebut,hFin:x.hFin}:{debut:x.debut,hDebut:x.hDebut};
+    for(const k in want)if(!want[k])delete want[k];
+    if(want.debut||want.fin){
+      readDates=want;
+      const diff=Object.keys(want).some(k=>(d[k]||null)!==want[k]);
+      const txt=loc?`${want.debut?fmtD(want.debut)+(want.hDebut?" "+fmtH(want.hDebut):""):"?"} → ${want.fin?fmtD(want.fin)+(want.hFin?" "+fmtH(want.hFin):""):"?"}`:`livraison ${fmtD(want.debut)}${want.hDebut?" "+fmtH(want.hDebut):""}`;
+      $("oDatesTxt").textContent=`Dates lues dans le devis : ${txt}.`+(diff?"":" Le besoin a déjà ces dates.");
+      $("oDates").hidden=!diff||!canWrite;$("oDatesRow").hidden=false;extra.push(1);
+    }
+  }
+  // version
+  const key=r.refKey, mine=d?offersOf(d._id):[];
+  let hint="";
+  if(oMode.kind==="add"){
+    const same=key&&mine.find(o=>DevisReader.refKey(o.ref)===key);
+    const byFour=!same&&mine.find(o=>keyOf(o.fournisseur)===keyOf($("oFour").value));
+    const g=same||byFour;
+    if(g){
+      if(same&&!$("oFour").disabled)$("oFour").value=g.fournisseur;
+      const v=nextVersion(g);
+      hint=`${same?`Même n° de devis que ${esc(g.fournisseur)}`:`${esc(g.fournisseur)} a déjà une proposition ici`} : celle-ci sera enregistrée comme <b>V${v}</b> (la V${v-1} reste dans l'historique).`;
+    }
+  }else if(oMode.kind==="version"&&key&&oMode.offre.ref&&DevisReader.refKey(oMode.offre.ref)!==key){
+    hint=`Attention : le n° de devis lu (${esc(r.ref)}) n'est pas celui de la V${oMode.offre.version||1} (${esc(oMode.offre.ref)}). Vérifie que c'est bien le même devis.`;
+  }
+  if(key){
+    const elsewhere=offres.filter(o=>o.devisId!==fiche.id&&DevisReader.refKey(o.ref)===key).map(o=>devisById(o.devisId)).filter(Boolean);
+    if(elsewhere.length)hint+=(hint?"<br>":"")+`Ce n° de devis est aussi enregistré sur ${elsewhere.slice(0,2).map(x=>`${pad(x.num)} ${esc(x.objet||"")} (${esc(evOf(x))})`).join(", ")}.`;
+  }
+  if(hint){$("oVersionHint").innerHTML=hint;$("oVersionHint").hidden=false;extra.push(1)}
+  $("oReadExtra").hidden=!extra.length;
+}
+$("oDates").onclick=()=>{
+  const d=devisById(fiche.id);if(!d||!readDates||!canWrite)return;
+  const patch={...readDates}, before={};for(const k in patch)before[k]=d[k]??null;
+  const paint=()=>{$("fDebut").value=d.debut||"";$("fHDebut").value=d.hDebut||"";if($("fFin"))$("fFin").value=d.fin||"";$("fHFin").value=d.hFin||"";snapshotFiche()};
+  Object.assign(d,patch);write(d._id,()=>api("devis",d._id,"update",patch));paint();render();
+  $("oDates").hidden=true;$("oDatesTxt").textContent+=" Mises sur le besoin.";
+  toast(`${pad(d.num)} ${d.objet||""} : dates du devis appliquées.`,()=>{Object.assign(d,before);write(d._id,()=>api("devis",d._id,"update",before));paint();render()});
 };
 const parseMontant=v=>{const s=String(v).replace(/[\s €]/g,"").replace(/HT/i,"").replace(",",".");if(!s)return null;const n=parseFloat(s);return isNaN(n)?null:Math.round(n*100)/100};
 
@@ -986,6 +1072,13 @@ $("offerForm").addEventListener("submit",async e=>{
   const montant=parseMontant($("oMontant").value);
   if($("oMontant").value.trim()&&montant==null){$("oErr").textContent="Le montant doit être un nombre, par exemple 1250 ou 1 250,50.";$("oErr").hidden=false;return}
   const data={fournisseur:four,montant,detail:$("oDetail").value.trim(),ref:$("oRef").value.trim()};
+  for(const [id,k,lab] of [["oTtc","ttc","Le montant TTC"],["oTransport","transport","Le transport"]]){
+    const v=$(id).value.trim();if(!v){data[k]=null;continue}
+    const n=parseMontant(v);if(n==null){$("oErr").textContent=`${lab} doit être un nombre, par exemple 120 ou 1 111,80.`;$("oErr").hidden=false;$("oMore").open=true;return}
+    data[k]=n;
+  }
+  data.remise=$("oRemise").value.trim();data.paiement=$("oPaie").value.trim();data.validite=$("oValid").value||null;
+  data.articles=readArticles&&readArticles.length?readArticles:null;
   const file=$("oFile").files[0];
   if(file&&assets){
     const t=/\.pdf$/i.test(file.name)?"application/pdf":(file.type||undefined);
@@ -1096,15 +1189,15 @@ function download(name,content,type){
 const stamp=()=>isoOf(new Date());
 function exportRows(){
   const yes=b=>b?"oui":"";
-  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Jusqu'à","Reprise","Heure reprise","Reprise jusqu'à","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Paiement SB","Paiement validé","Paiement envoyé","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF","Devis signé"];
+  const head=["N°","Partie","Événement / catégorie","Date événement","Lieu","Besoin","Arrivée / livraison","Heure arrivée / livraison","Jusqu'à","Reprise","Heure reprise","Reprise jusqu'à","À envoyer","Envoyé","Signé","Devis demandé","Commandé","Livré","Payé","Paiement SB","Paiement validé","Paiement envoyé","Fournisseur","Version","Montant HT","Retenue","Détail","Réf. fournisseur","PDF","Devis signé","TTC","dont transport","Remise","Paiement","Valable jusqu'au"];
   const lines=[head];
   for(const d of [...rows].sort((a,b)=>(kindOf(a)>kindOf(b)?-1:kindOf(a)<kindOf(b)?1:0)||evTime(evObj(a))-evTime(evObj(b))||a.num-b.num)){
     const ev=evObj(d), loc=kindOf(d)==="location";
     const b=[pad(d.num),SPACES[spaceOfType(d.type)].nom,ev.nom,ev.date?[ev.date,ev.dateFin].filter(Boolean).join(" → "):"",ev.lieu||"",d.objet||"",d.debut||"",d.hDebut||"",d.hDebut2||"",loc?d.fin||"":"",loc?d.hFin||"":"",loc?d.hFin2||"":"",
       loc?yes(d.aEnvoyer):"",loc?yes(d.envoye):"",loc?yes(d.signe):"",loc?"":yes(d.demande),loc?"":yes(d.commande),loc?"":yes(d.livre),yes(d.paye),yes(d.factSB),yes(d.factRecue),yes(d.factEnvoyee)];
     const os=offersOf(d._id).sort((x,y)=>keyOf(x.fournisseur).localeCompare(keyOf(y.fournisseur))||(x.version||1)-(y.version||1));
-    if(!os.length)lines.push([...b,"","","","","","","",""]);
-    for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:"",o.signeFichierId?`${location.origin}/api/file?p=${o.signeFichierId}`:""]);
+    if(!os.length)lines.push([...b,"","","","","","","","","","","","",""]);
+    for(const o of os)lines.push([...b,o.fournisseur,"V"+(o.version||1),o.montant,o.retenue?"oui":"",o.detail||"",o.ref||"",o.fichierId?`${location.origin}/api/file?p=${o.fichierId}`:"",o.signeFichierId?`${location.origin}/api/file?p=${o.signeFichierId}`:"",o.ttc??"",o.transport??"",o.remise||"",o.paiement||"",o.validite||""]);
   }
   return lines;
 }
