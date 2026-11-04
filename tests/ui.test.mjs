@@ -595,11 +595,11 @@ describe("lire un devis PDF", () => {
     assert.ok(await page.isHidden("#oReadRow"), "pas de bouton tant qu'aucun PDF n'est choisi");
     await page.setInputFiles("#oFile", FIX + "devis-designation.pdf");
     await page.click("#oRead");
-    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s234,50\s€ HT · réf\. D-2026-114 · STAGEPRO · et TTC\./u);
+    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s234,50\s€ HT · réf\. D-2026-114 · STAGE PRO · et TTC\./u);
     assert.equal(await page.inputValue("#oDetail"), "12 Praticable Samia 2x1 m hauteur 60 cm\n2 Escalier 3 marches\n3 Jupe de scène noire 6 m");
     assert.equal(await page.inputValue("#oMontant"), "1234,50");
     await page.click("#oSave"); await page.waitForTimeout(800);
-    const o = [...s.db.offres.values()].find((x) => x.fournisseur === "STAGEPRO");
+    const o = [...s.db.offres.values()].find((x) => x.fournisseur === "STAGE PRO");
     assert.equal(o.montant, 1234.5); assert.equal(o.ref, "D-2026-114"); assert.ok(o.fichierId && s.files.has(o.fichierId));
   });
 
@@ -623,7 +623,7 @@ describe("lire un devis PDF", () => {
     await page.click('[data-open="d1"] >> nth=0'); await page.click("#addOfferBtn");
     await page.setInputFiles("#oFile", FIX + "devis-complet.pdf");
     await page.click("#oRead");
-    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s161,00\s€ HT · réf\. LC-881 \/ 2 · LUMIERECO · et TTC, transport, remise, paiement, validité\./u);
+    assert.match(await readMsg(page), /^Lu dans le PDF : 3 lignes · 1\s161,00\s€ HT · réf\. LC-881 \/ 2 · LUMIERE & CO · et TTC, transport, remise, paiement, validité\./u);
     assert.ok(await page.$eval("#oMore", (d) => d.open));
     assert.equal(await page.inputValue("#oTtc"), "1393,20"); assert.equal(await page.inputValue("#oTransport"), "180");
     assert.equal(await page.inputValue("#oRemise"), "129,00 € (10 %)");
@@ -637,7 +637,7 @@ describe("lire un devis PDF", () => {
     assert.equal(await page.inputValue("#fDebut"), "2026-12-04");
     assert.ok(await page.isHidden("#oDates"));
     await page.click("#oSave"); await page.waitForTimeout(800);
-    const o = [...s.db.offres.values()].find((x) => x.fournisseur === "LUMIERECO");
+    const o = [...s.db.offres.values()].find((x) => x.fournisseur === "LUMIERE & CO");
     assert.deepEqual([o.ttc, o.transport, o.remise, o.paiement, o.validite], [1393.2, 180, "129,00 € (10 %)", "Acompte 30 % à la commande", "2026-12-02"]);
     assert.deepEqual(o.articles[0], { q: 8, d: "Projecteur Robe Spiider", pu: 95, remise: null, total: 760 });
     assert.match(await page.textContent("#propList"), /1\s393,20\s€ TTC · dont transport 180,00\s€ HT · remise 129,00 € \(10 %\) · Acompte 30 % à la commande · valable jusqu'au mer 2 déc/u);

@@ -174,7 +174,22 @@
     if (known.length) res.fournisseur = known[0];
     else {
       const m = /[\w.+-]+@([\w-]+)\.[a-z.]{2,}/i.exec(text);
-      if (m && !/^(gmail|hotmail|outlook|yahoo|orange|free|wanadoo|sfr|laposte|icloud|live|me)$/i.test(m[1])) res.fournisseur = m[1].replace(/[-_]+/g, " ").toUpperCase();
+      if (m && !/^(gmail|hotmail|outlook|yahoo|orange|free|wanadoo|sfr|laposte|icloud|live|me)$/i.test(m[1])) {
+        res.fournisseur = m[1].replace(/[-_]+/g, " ").toUpperCase();
+        // the name as written in the document (« easybackline » -> « EASY BACKLINE »)
+        const want = norm(m[1]).replace(/[^a-z0-9]/g, "");
+        for (const t of all) {
+          const words = t.split(/\s+/);
+          for (let i = 0; i < words.length && res.fournisseur === m[1].replace(/[-_]+/g, " ").toUpperCase(); i++) {
+            let acc = "";
+            for (let j = i; j < Math.min(words.length, i + 5); j++) {
+              acc += norm(words[j]).replace(/[^a-z0-9]/g, "");
+              if (acc === want && !/@/.test(words.slice(i, j + 1).join(" "))) { res.fournisseur = words.slice(i, j + 1).join(" ").replace(/[,;:]+$/, ""); break; }
+              if (!want.startsWith(acc)) break;
+            }
+          }
+        }
+      }
     }
     return res;
   }
