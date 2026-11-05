@@ -606,3 +606,14 @@ table.prix .rem{color:var(--muted);font-size:.74rem}
 .cal-menu button:hover,.cal-menu button:focus-visible{background:var(--hover)}
 .cal-menu button.primary{background:var(--green);color:#fff}
 .cal-menu button.primary:hover{background:color-mix(in srgb,var(--green) 85%,#000)}
+
+/* location : case d'arrivée au début de la barre, case de reprise au bout */
+.cliv.end{justify-self:end;margin:4px 7px 0 0}
+.cliv.end.low{align-self:end;margin:0 7px 5px 0}
+.cbar.has-ck-e{padding-right:28px}
+.cal-menu button.is-done{color:var(--muted)}
+.cl-cks{display:grid;gap:4px}
+.cl-row .cliv.lab{width:auto;height:auto;padding:4px 8px;gap:5px;display:flex;align-items:center;font:600 .74rem/1 var(--body);color:var(--muted)}
+.cl-row .cliv.lab svg{width:12px;height:12px;color:transparent;border:1.5px solid currentColor;border-radius:2px}
+.cl-row .cliv.lab[aria-pressed="true"]{color:#fff}
+.cl-row .cliv.lab[aria-pressed="true"] svg{color:#fff;border-color:#fff}

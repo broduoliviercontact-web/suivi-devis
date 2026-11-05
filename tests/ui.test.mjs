@@ -516,7 +516,7 @@ describe("calendrier : valider une livraison", () => {
     s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07", commande: true } } });
     const page = await open();
     await toNov(page);
-    assert.equal(await page.locator('.cliv[data-liv="d1"]').count(), 0, "pas de case sur une location");
+    assert.equal(await page.locator('.cliv[data-liv="d1"][data-k="livre"]').count(), 0, "une location n'a pas de case « Livré »");
     await page.click('.cliv[data-liv="d3"]'); await page.waitForTimeout(400);
     assert.equal(s.db.devis.get("d3").livre, true);
     assert.equal(await page.getAttribute('.cliv[data-liv="d3"]', "aria-pressed"), "true");
@@ -532,18 +532,33 @@ describe("calendrier : valider une livraison", () => {
     assert.equal(s.db.devis.get("d3").livre, true);
     assert.ok(await page.isHidden(".cal-menu")); assert.ok(await page.isHidden("#veil"));
     await page.click('.cbar[data-open="d3"]');
-    assert.match(await page.textContent(".cal-menu"), /Remettre en attente de livraison/);
+    assert.match(await page.textContent(".cal-menu"), /Livré · remettre en attente/);
     await page.keyboard.press("Escape"); assert.ok(await page.isHidden(".cal-menu"));
     await page.click('.cbar[data-open="d3"]'); await page.click('.cal-menu [data-cm="open"]');
     await page.waitForSelector("#veil:not([hidden])");
   });
-  test("une location dans le calendrier ouvre toujours sa fiche directement", async () => {
+  test("location : valider l'arrivée et la reprise (cases aux deux bouts, ou menu)", async () => {
     const page = await open();
     await page.click("#tabCal");
     for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
       await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
-    await page.click('.cbar[data-open="d1"] >> nth=0');
-    await page.waitForSelector("#veil:not([hidden])"); assert.ok(await page.isHidden(".cal-menu"));
+    // case d'arrivée au début de la barre
+    await page.click('.cliv[data-liv="d1"][data-k="arrive"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d1").arrive, true);
+    assert.match(await page.textContent("#toastText"), /arrivée validée/);
+    assert.ok(!(await page.$eval('.cbar[data-open="d1"]', (b) => b.classList.contains("is-livre"))), "pas encore repris");
+    // la reprise par le menu
+    await page.click('.cbar[data-open="d1"] >> nth=-1');
+    assert.match(await page.textContent(".cal-menu"), /Arrivé · remettre en attente/);
+    await page.click('.cal-menu [data-cm="repris"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d1").repris, true);
+    assert.ok(await page.$eval('.cbar[data-open="d1"] >> nth=-1', (b) => b.classList.contains("is-livre")), "arrivé et repris : barrée");
+    assert.equal(await page.getAttribute('.cliv[data-liv="d1"][data-k="repris"]', "aria-pressed"), "true");
+    await page.click("#toastUndo"); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d1").repris, false);
+    // ouvrir la fiche depuis le menu
+    await page.click('.cbar[data-open="d1"] >> nth=0'); await page.click('.cal-menu [data-cm="open"]');
+    await page.waitForSelector("#veil:not([hidden])");
   });
   test("iPhone : la case est dans la liste du mois", async () => {
     s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07" } } });
