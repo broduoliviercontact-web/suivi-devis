@@ -657,8 +657,30 @@ $("calPrev").onclick=()=>setCal(new Date(calMonth.getFullYear(),calMonth.getMont
 $("calNext").onclick=()=>setCal(new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1));
 $("calToday").onclick=()=>setCal(new Date());
 $("calView").addEventListener("click",e=>{
-  const v=e.target.closest("[data-liv]");if(v){toggleLivre(v.dataset.liv);return}
-  const o=e.target.closest("[data-open]");if(o)openFiche(o.dataset.open)});
+  const v=e.target.closest("[data-liv]");if(v){closeCalMenu();toggleLivre(v.dataset.liv);return}
+  const o=e.target.closest("[data-open]");if(!o)return;
+  const d=devisById(o.dataset.open);
+  // a delivery: a small menu « Valider la livraison / Ouvrir la fiche » (a locations bar opens its fiche)
+  if(d&&kindOf(d)==="achat"&&canWrite&&o.classList.contains("cbar")){e.stopPropagation();openCalMenu(o,d);return}
+  openFiche(o.dataset.open)});
+const calMenu=document.createElement("div");calMenu.className="cal-menu";calMenu.hidden=true;calMenu.setAttribute("role","menu");document.body.appendChild(calMenu);
+let calMenuFrom=null;
+function openCalMenu(bar,d){
+  calMenuFrom=bar;
+  calMenu.innerHTML=`<div class="cm-t">${esc(pad(d.num))} ${esc(d.objet||"")}</div>
+    <button type="button" role="menuitem" data-cm="livre" class="${d.livre?"":"primary"}">${CHECK}${d.livre?"Remettre en attente de livraison":"Valider la livraison"}</button>
+    <button type="button" role="menuitem" data-cm="open">Ouvrir la fiche</button>`;
+  calMenu.hidden=false;
+  const r=bar.getBoundingClientRect(), w=calMenu.offsetWidth, h=calMenu.offsetHeight;
+  let x=Math.min(Math.max(8,r.left),innerWidth-w-8), y=r.bottom+4; if(y+h>innerHeight-8)y=Math.max(8,r.top-h-4);
+  calMenu.style.left=x+"px";calMenu.style.top=y+"px";
+  calMenu.querySelector("button").focus();
+  calMenu.onclick=ev=>{const b=ev.target.closest("[data-cm]");if(!b)return;closeCalMenu();if(b.dataset.cm==="livre")toggleLivre(d._id);else openFiche(d._id)};
+}
+function closeCalMenu(back){if(calMenu.hidden)return;calMenu.hidden=true;if(back&&calMenuFrom&&document.contains(calMenuFrom))calMenuFrom.focus();calMenuFrom=null}
+document.addEventListener("click",e=>{if(!calMenu.hidden&&!calMenu.contains(e.target))closeCalMenu()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!calMenu.hidden){e.stopPropagation();closeCalMenu(true)}},true);
+addEventListener("scroll",()=>closeCalMenu(),{passive:true});addEventListener("resize",()=>closeCalMenu());
 // Calendrier : la case devant une livraison coche « Livré » (avec Annuler) ; le reste de la barre ouvre la fiche.
 function toggleLivre(id){
   const d=devisById(id);if(!d||!canWrite)return;

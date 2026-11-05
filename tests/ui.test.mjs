@@ -525,7 +525,25 @@ describe("calendrier : valider une livraison", () => {
     assert.ok(await page.isHidden("#veil"), "cocher n'ouvre pas la fiche");
     await page.click("#toastUndo"); await page.waitForTimeout(400);
     assert.equal(s.db.devis.get("d3").livre, false);
-    await page.click('.cbar[data-open="d3"]'); await page.waitForSelector("#veil:not([hidden])");
+    // un clic sur la livraison elle-même : menu « Valider la livraison / Ouvrir la fiche »
+    await page.click('.cbar[data-open="d3"]');
+    assert.ok(await page.isVisible(".cal-menu"));
+    await page.click('.cal-menu [data-cm="livre"]'); await page.waitForTimeout(400);
+    assert.equal(s.db.devis.get("d3").livre, true);
+    assert.ok(await page.isHidden(".cal-menu")); assert.ok(await page.isHidden("#veil"));
+    await page.click('.cbar[data-open="d3"]');
+    assert.match(await page.textContent(".cal-menu"), /Remettre en attente de livraison/);
+    await page.keyboard.press("Escape"); assert.ok(await page.isHidden(".cal-menu"));
+    await page.click('.cbar[data-open="d3"]'); await page.click('.cal-menu [data-cm="open"]');
+    await page.waitForSelector("#veil:not([hidden])");
+  });
+  test("une location dans le calendrier ouvre toujours sa fiche directement", async () => {
+    const page = await open();
+    await page.click("#tabCal");
+    for (let i = 0; i < 24 && !/novembre 2026/i.test(await page.textContent("#calTitle")); i++)
+      await page.click(new Date() < new Date(2026, 10, 1) ? "#calNext" : "#calPrev");
+    await page.click('.cbar[data-open="d1"] >> nth=0');
+    await page.waitForSelector("#veil:not([hidden])"); assert.ok(await page.isHidden(".cal-menu"));
   });
   test("iPhone : la case est dans la liste du mois", async () => {
     s.seed({ devis: { d3: { ...SEED.devis.d3, debut: "2026-11-07" } } });

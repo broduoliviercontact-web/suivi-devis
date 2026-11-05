@@ -596,3 +596,13 @@ table.prix td:nth-child(3),table.prix td:nth-child(4),table.prix th:nth-child(3)
 table.prix .rem{color:var(--muted);font-size:.74rem}
 .det .hits{margin-bottom:4px;padding:4px 6px;border-left:3px solid var(--blue);background:color-mix(in srgb,var(--blue) 6%,transparent);font-size:.85rem}
 .det details.all>summary{cursor:pointer;color:var(--muted);font-size:.8rem}
+
+/* calendrier : menu d'une livraison */
+.cal-menu{position:fixed;z-index:60;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;display:grid;gap:4px}
+.cal-menu[hidden]{display:none}
+.cal-menu .cm-t{font-size:.8rem;color:var(--muted);padding:2px 6px 4px;border-bottom:1px solid var(--line);margin-bottom:2px}
+.cal-menu button{display:flex;align-items:center;gap:8px;text-align:left;padding:8px 10px;border:1px solid transparent;border-radius:3px;background:none;color:var(--fg);font:inherit;cursor:pointer}
+.cal-menu button svg{width:14px;height:14px;flex:none}
+.cal-menu button:hover,.cal-menu button:focus-visible{background:var(--hover)}
+.cal-menu button.primary{background:var(--green);color:#fff}
+.cal-menu button.primary:hover{background:color-mix(in srgb,var(--green) 85%,#000)}
